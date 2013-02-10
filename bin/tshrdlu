@@ -1,0 +1,49 @@
+#!/bin/bash
+
+EXIT_CODE=0
+
+if [ -z $TSHRDLU_DIR ] 
+then
+   TSHRDLU_DIR=`dirname $0`/../
+fi
+
+if [ -z $JAVA_MEM_FLAG ] 
+then
+    JAVA_MEM_FLAG=-Xmx4g
+fi
+
+MANAGED_JARS="`find $TSHRDLU_DIR/lib_managed -name '*.jar' -print | tr '\n' ':'`"
+
+SCALA_LIB="$HOME/.sbt/boot/scala-2.10.0/lib/scala-library.jar"
+
+CP="$TSHRDLU_DIR/target/classes:$SCALA_LIB:$TSHRDLU_DIR/src/main/resources:$MANAGED_JARS"
+
+JAVA="$JAVA_HOME/bin/java"
+JAVA_COMMAND="$JAVA -classpath $CP -Dtshrdlu.dir=$TSHRDLU_DIR -Dtwitter4j.oauth.consumerKey=$TWITTER4J_OAUTH_CONSUMERKEY -Dtwitter4j.oauth.consumerSecret=$TWITTER4J_OAUTH_CONSUMERSECRET -Dtwitter4j.oauth.accessToken=$TWITTER4J_OAUTH_ACCESSTOKEN -Dtwitter4j.oauth.accessTokenSecret=$TWITTER4J_OAUTH_ACCESSTOKENSECRET"
+
+CMD=$1
+shift
+
+help()
+{
+cat <<EOF
+tshrdlu 0.1.0 commands: 
+
+  run           run the main method of a given class
+
+EOF
+}
+
+CLASS=
+
+case $CMD in
+    run) CLASS=$1; shift;;
+    help) help; exit 1;;
+    *) echo "Unrecognized command: $CMD"; help; exit 1;;
+esac
+
+$JAVA_COMMAND $CLASS ${1+"$@"} 
+(( EXIT_CODE += $? ))
+
+exit $EXIT_CODE
+
