@@ -24,14 +24,11 @@ import TwitterAuthentication._
  * Base class that sets reasonable defaults for Configuration
  * and StatusListener and gets a TwitterStream instance set up and
  * ready to use.
- *
  */
-class BaseStreamer(
-  statusListener: StatusListener = PrintStatusListener,
-  config: Configuration = configFromProperties
-) {
+class BaseStreamer(config: Configuration = configFromProperties)
+extends PrintStatusListener {
   val twitterStream = new TwitterStreamFactory(config).getInstance
-  twitterStream.addListener(statusListener)
+  twitterStream.addListener(this)
 
   /**
    * Do something interesting with the stream. Base implementation
@@ -50,9 +47,7 @@ object StatusStreamer extends BaseStreamer
 /**
  * A base class for streamers that use a filter.
  */
-abstract class FilteredStreamer(
-  statusListener: StatusListener = PrintStatusListener
-) extends BaseStreamer(statusListener) with Filterable {
+abstract class FilteredStreamer extends BaseStreamer with Filterable {
 
   /**
    * Get a filtered stream based on the FilterQuery provided by

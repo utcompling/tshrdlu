@@ -41,7 +41,7 @@ abstract class StatusOnlyListener extends StatusListener {
 /**
  * A listener that prints the text of each status to standard out.
  */
-object PrintStatusListener extends StatusOnlyListener {
+class PrintStatusListener extends StatusOnlyListener {
   def onStatus(status: Status) { 
     println(status.getText) 
   }
