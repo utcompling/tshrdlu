@@ -31,10 +31,29 @@ trait EnglishStatusListener extends StatusOnlyListener {
   /**
    * Test whether a given text is written in English.
    */
-  val TheRE = """(?i)\bthe\b""".r // Throw me away!
+ // val TheRE = """(?i)\bthe\b""".r // Throw me away!
+ val start = """(?:[#@])|\b(?:http)"""
+ val dictionary = new English
   def isEnglish(text: String) = {
     // Remove this and do better.
-    !TheRE.findFirstIn(text).isEmpty
+    //!TheRE.findFirstIn(text).isEmpty
+    val seqText =  SimpleTokenizer(text).distinct
+    val bool = seqText.filter(x => !x.startsWith(start)).map(x => dictionary.vocabulary.contains(x))
+    val trueCount = bool.count(_==true)
+    val falseCount = bool.count(_==false)
+    if(trueCount>falseCount)
+      true
+    else
+      false
+    /*var counter =0
+    var i =0
+    var bool = false
+    while(counter<=round(0.5*seqText.size&& i<seqText.size)){
+      bool = English.vocabulary.contains(seqText(i))
+
+      counter= counter+1
+    }*/
+
   }
 
 }
@@ -70,14 +89,16 @@ object PolarityStatusStreamer extends BaseStreamer with PolarityStatusListener
  * statistics at default interval (every 100 tweets). Filtered by provided
  * query terms.
  */
-object PolarityTermStreamer 
+object PolarityTermStreamer extends FilteredStreamer with TermFilter with PolarityStatusListener
 
 /**
  * Output polarity labels for every English tweet and output polarity
  * statistics at an interval of every ten tweets. Filtered by provided
  * query locations.
  */
-object PolarityLocationStreamer 
+object PolarityLocationStreamer extends FilteredStreamer with LocationFilter with PolarityStatusListener{
+  override val outputInterval=10
+}
 
 
 /**
@@ -126,9 +147,27 @@ trait PolarityStatusListener extends EnglishStatusListener {
    *   1 for negative
    *   2 for neutral
    */
-  val random = new scala.util.Random
+  val sentiment = new English
+  val starts = """(?:[#@])|\b(?:http)"""
+  //val positiveWords = sentiment.positiveWords
+  //val random = new scala.util.Random
+  lazy val positiveWords = sentiment.getLexicon("positive_words.txt.gz");
+  lazy val negativeWords = sentiment.getLexicon("negative_words.txt.gz");
   def getPolarity(text: String) = {
-    random.nextInt(3)
+    //random.nextInt(3)
+    val seqText =  SimpleTokenizer(text).distinct
+    if (seqText.contains(":)")||seqText.contains(":-)")) 0 else if(seqText.contains(":(")||seqText.contains(":-(")) 1 else{
+    val sentimentMap = seqText.filter(x => !x.startsWith(starts)).map(x => if(positiveWords.contains(x)) "positive" else if(negativeWords.contains(x)) "negative" else "neutral")
+    val positiveCount = sentimentMap.count(_=="positive")
+    val negativeCount = sentimentMap.count(_=="negative")
+    val neutralCount = sentimentMap.count(_=="neutral")
+    if(positiveCount>  negativeCount)
+      0
+    else if(negativeCount > positiveCount)
+      1
+      else
+      2
+    }
   }
 
 }
