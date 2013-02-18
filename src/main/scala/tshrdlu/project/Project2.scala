@@ -82,7 +82,9 @@ object PolarityTermStreamer extends FilteredStreamer with PolarityStatusListener
  * statistics at an interval of every ten tweets. Filtered by provided
  * query locations.
  */
-object PolarityLocationStreamer extends FilteredStreamer with PolarityStatusListener with LocationFilter
+object PolarityLocationStreamer extends FilteredStreamer with PolarityStatusListener with LocationFilter {
+  override val outputInterval = 10
+}
 
 
 /**
