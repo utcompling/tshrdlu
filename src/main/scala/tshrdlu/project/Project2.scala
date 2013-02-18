@@ -24,18 +24,23 @@ trait EnglishStatusListener extends StatusOnlyListener {
    */
   override def onStatus(status: Status) { 
     val text = status.getText
-    if (isEnglish(text)) 
+    if (isEnglish(text))
       println(text)
   }
 
   /**
    * Test whether a given text is written in English.
    */
-  val TheRE = """(?i)\bthe\b""".r // Throw me away!
+  val english = new English()
   def isEnglish(text: String) = {
     // Remove this and do better.
-    !TheRE.findFirstIn(text).isEmpty
+    val words = for { word <- text.split("\\s+"); if (!word.startsWith("@") && !word.startsWith("#") && !word.startsWith("http") && !word.startsWith("www")) } yield """\w+""".r.findFirstIn(word.toLowerCase).getOrElse("")
+    val englishWords = for (word <- words) yield if (english.vocabulary(word)) 1 else 0
+    englishWords.size > 0 && (1.0 * englishWords.sum / englishWords.size) > 0.65
   }
+
+  def getVocab(filename: String) =
+    (for (word <- io.Source.fromFile(filename).getLines) yield word.toLowerCase).toSet
 
 }
 
@@ -70,14 +75,14 @@ object PolarityStatusStreamer extends BaseStreamer with PolarityStatusListener
  * statistics at default interval (every 100 tweets). Filtered by provided
  * query terms.
  */
-object PolarityTermStreamer 
+object PolarityTermStreamer extends FilteredStreamer with PolarityStatusListener with TermFilter
 
 /**
  * Output polarity labels for every English tweet and output polarity
  * statistics at an interval of every ten tweets. Filtered by provided
  * query locations.
  */
-object PolarityLocationStreamer 
+object PolarityLocationStreamer extends FilteredStreamer with PolarityStatusListener with LocationFilter
 
 
 /**
@@ -126,9 +131,13 @@ trait PolarityStatusListener extends EnglishStatusListener {
    *   1 for negative
    *   2 for neutral
    */
-  val random = new scala.util.Random
   def getPolarity(text: String) = {
-    random.nextInt(3)
+    val words = for { word <- text.split("\\s+"); if (!word.startsWith("@") && !word.startsWith("#") && !word.startsWith("http") && !word.startsWith("www")) } yield """\w+""".r.findFirstIn(word.toLowerCase).getOrElse("")
+    val negativeWords = (for (word <- words) yield if (english.negativeWords(word)) 1 else 0).sum
+    val positiveWords = (for (word <- words) yield if (english.positiveWords(word)) 1 else 0).sum
+    if (positiveWords > negativeWords) 0
+    else if (negativeWords > positiveWords) 1
+    else 2
   }
 
 }
