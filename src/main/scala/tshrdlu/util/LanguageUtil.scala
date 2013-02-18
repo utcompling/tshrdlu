@@ -62,5 +62,25 @@ abstract class Language(code: String) {
  */
 class English extends Language("eng") {
   lazy val stopwords = getLexicon("stopwords.english")
-  lazy val vocabulary = getLexicon("masc_vocab.txt.gz") ++ stopwords
+  lazy val vocabulary = (getLexicon("masc_vocab.txt.gz") ++ stopwords.filter(x => x !="que" && x != "los" && x != "las")
+    .filter(x=>x.length > 1) 
+    ++ Set("i", "b", "u", "r", "o", "t", "m", "jk", "lol", "nvm", "lmao", "def", "plz", "wtf", "im", "dont", "wont", "cant"))
 }
+
+abstract class OtherLexica (code: String) {
+
+  lazy val resourceDir = "/lang/" + code
+  def appendPath(subdir: String) = resourceDir + subdir
+  def getLexicon(filename: String) = 
+    Resource.asSource(appendPath("/lexicon/"+filename))
+      .getLines
+      .filterNot(_.startsWith(";")) // filter out comments
+      .toSet
+
+}
+
+class Polarity extends OtherLexica("eng") {
+  lazy val posWords = getLexicon("positive-words.txt.gz")
+  lazy val negWords = getLexicon("negative-words.txt.gz")
+}
+
