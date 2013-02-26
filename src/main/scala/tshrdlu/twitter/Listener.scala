@@ -30,10 +30,11 @@ import twitter4j._
  * code that isn't doing any storing of tweets or processing
  * massive amounts of them.
  */
-abstract class StatusOnlyListener extends StatusListener {
+trait StatusListenerAdaptor extends StatusListener {
+  def onStatus(status: Status) {}
   def onDeletionNotice(statusDeletionNotice: StatusDeletionNotice) {}
   def onTrackLimitationNotice(numberOfLimitedStatuses: Int) {}
-  def onException(ex: Exception) { ex.printStackTrace }
+  def onException(ex: Exception) { }
   def onScrubGeo(arg0: Long, arg1: Long) {}
   def onStallWarning(warning: StallWarning) {}
 }
@@ -41,8 +42,75 @@ abstract class StatusOnlyListener extends StatusListener {
 /**
  * A listener that prints the text of each status to standard out.
  */
-class PrintStatusListener extends StatusOnlyListener {
-  def onStatus(status: Status) { 
+class PrintStatusListener extends StatusListenerAdaptor {
+  override def onStatus(status: Status) { 
     println(status.getText) 
   }
 }
+
+/**
+ * A status listener that identifies admissable tweets
+ * and accumulates them.
+ */ 
+trait StatusAccumulator extends StatusListenerAdaptor {
+
+  /**
+   * A function that, given the text of a tweet, says whether it
+   * is something to accumulate or not.
+   */
+  def admissable: (String => Boolean)
+
+  /**
+   * Return the number of tweets accumulated so far.
+   */
+  def count = numTweetsSeen
+
+  // The counter
+  private var numTweetsSeen = 0
+
+  /**
+   * Return tweets accumulated so far.
+   */
+  def tweets = tweetBuffer.toSeq
+
+  // The accumulator
+  private val tweetBuffer = collection.mutable.ListBuffer[Status]()
+
+  override def onStatus(status: Status) {
+    if (admissable(status.getText)) {
+      tweetBuffer += status
+      numTweetsSeen += 1
+    }
+  }
+
+}
+
+/**
+ * Accumulate English tweets using the not-so-good isEnglish method
+ * in tshrdlu.util.English.
+ */
+class EnglishStatusAccumulator extends StatusAccumulator {
+  def admissable = tshrdlu.util.English.isEnglish
+}
+
+
+trait UserStreamListenerAdaptor extends UserStreamListener {
+
+  def onBlock(source: User, blockedUser: User) {}
+  def onDeletionNotice(directMessageId: Long, userId: Long) {}
+  def onDirectMessage(directMessage: DirectMessage) {}
+  def onFavorite(source: User, target: User, favoritedStatus: Status) {}
+  def onFollow(source: User, followedUser: User) {}
+  def onFriendList(friendIds: Array[Long]) {}
+  def onUnblock(source: User, unblockedUser: User) {}
+  def onUnfavorite(source: User, target: User, unfavoritedStatus: Status) {}
+  def onUserListCreation(listOwner: User, list: UserList) {}
+  def onUserListDeletion(listOwner: User, list: UserList) {}
+  def onUserListMemberAddition(addedMember: User, listOwner: User, list: UserList) {}
+  def onUserListMemberDeletion(deletedMember: User, listOwner: User, list: UserList) {}
+  def onUserListSubscription(subscriber: User, listOwner: User, list: UserList){} 
+  def onUserListUnsubscription(subscriber: User, listOwner: User, list: UserList) {}
+  def onUserListUpdate(listOwner: User, list: UserList) {}
+  def onUserProfileUpdate(updatedUser: User) {}
+}
+
