@@ -17,35 +17,35 @@ package tshrdlu.twitter
  */
 
 import twitter4j._
-import twitter4j.conf.Configuration
-import TwitterAuthentication._
 import collection.JavaConversions._
 
 /**
  * Base trait with properties default for Configuration.
  * Gets a Twitter instance set up and ready to use.
  */
-trait BaseUser {
-  val user = new TwitterFactory(configFromProperties).getInstance
+trait TwitterInstance {
+  val twitter = new TwitterFactory().getInstance
 }
-
 
 /**
  * A bot that can monitor the stream and also take actions for the user.
  */
-class ReactiveUser extends BaseUser with BaseStream {
-  stream.addListener(new UserStatusResponder(user))
+class ReactiveBot extends TwitterInstance with StreamInstance {
+  stream.addListener(new UserStatusResponder(twitter))
 }
 
 /**
- * Companion object for ReactiveUser with main method.
+ * Companion object for ReactiveBot with main method.
  */
-object ReactiveUser {
+object ReactiveBot {
 
   def main(args: Array[String]) {
-    val bot = new ReactiveUser
-    //bot.stream.sample
+    val bot = new ReactiveBot
     bot.stream.user
+    
+    // If you aren't following a lot of users and want to get some
+    // tweets to test out, use this instead of bot.stream.user.
+    //bot.stream.sample
   }
 
 }
@@ -58,13 +58,22 @@ object ReactiveUser {
  * implementation searches for tweets on the API that have overlapping
  * vocabulary and replies with one of those.
  */
-class UserStatusResponder(user: Twitter) extends StatusListenerAdaptor with UserStreamListenerAdaptor {
+class UserStatusResponder(twitter: Twitter) 
+extends StatusListenerAdaptor with UserStreamListenerAdaptor {
 
   import chalk.util.SimpleTokenizer
   import collection.JavaConversions._
 
-  val username = user.getScreenName
-  
+  val username = twitter.getScreenName
+
+  // Recognize a follow command
+  lazy val FollowRE = """(?i)(?<=follow)(\s+(me|@[a-z]+))+""".r
+
+  // Pull just the lead mention from a tweet.
+  lazy val StripLeadMentionRE = """(?:)^@[a-z]+\s(.*)$""".r
+
+  // Pull the RT and mentions from the front of a tweet.
+  lazy val StripMentionsRE = """(?:)(?:RT\s)?(?:(?:@[a-z]+\s))+(.*)$""".r   
   override def onStatus(status: Status) {
     println("New status: " + status.getText)
     val replyName = status.getInReplyToScreenName
@@ -74,22 +83,13 @@ class UserStatusResponder(user: Twitter) extends StatusListenerAdaptor with User
       val text = "@" + status.getUser.getScreenName + " " + doActionGetReply(status)
       println("Replying: " + text)
       val reply = new StatusUpdate(text).inReplyToStatusId(status.getId)
-      user.updateStatus(reply)
+      twitter.updateStatus(reply)
     }
   }
-
-  // Recognize a follow command
-  lazy val FollowRE = """(?i)(?<=follow)(\s+(me|@[a-z]+))+""".r
-
-  // Pull just the lead mention from a tweet.
-  lazy val StripLeadMentionRE = """(?:)^@[a-z]+\s(.*)$""".r
-
-  // Pull the RT and mentions from the front of a tweet.
-  lazy val StripMentionsRE = """(?:)(?:RT\s)?(?:(?:@[a-z]+\s))+(.*)$""".r  
-
-
+ 
   /**
-   * A method that possibly takes an action based 
+   * A method that possibly takes an action based on a status
+   * it has received, and then produces a response.
    */
   def doActionGetReply(status: Status) = {
     val text = status.getText.toLowerCase
@@ -104,7 +104,7 @@ class UserStatusResponder(user: Twitter) extends StatusListenerAdaptor with User
 	  case screenName => screenName.drop(1)
 	}
 	.toSet
-      followSet.foreach(user.createFriendship)
+      followSet.foreach(twitter.createFriendship)
       "OK. I FOLLOWED " + followSet.map("@"+_).mkString(" ") + "."  
     } else {
       
@@ -116,7 +116,7 @@ class UserStatusResponder(user: Twitter) extends StatusListenerAdaptor with User
 	    .toSet
 	    .take(3)
 	    .toList
-	    .flatMap(w => user.search(new Query(w)).getTweets)
+	    .flatMap(w => twitter.search(new Query(w)).getTweets)
 	extractText(statusList)
       }	catch { 
 	case _: Throwable => "NO."
@@ -145,61 +145,3 @@ class UserStatusResponder(user: Twitter) extends StatusListenerAdaptor with User
 
 }
 
-
-
-object TestUser extends BaseUser {
-  def main(args: Array[String]) { 
-
-    println(user.getRateLimitStatus("application"))
-
-    val query = new Query("scala")
-    val result = user.search(query)
-    result.getTweets.foreach(t => println(t.getUser.getScreenName + ": " + t.getText))
-
-    //user.getHomeTimeline.take(3).foreach(status => println(status.getText))
-
-    //user.updateStatus(new StatusUpdate("OK."))
-
-    //user.getMentionsTimeline.foreach { status => {
-    //  //println(status.getUserMentionEntities.map(_.getScreenName).mkString(" "))
-    //  println(status.getId)
-    //  val participants = 
-    //	(status.getUser.getScreenName :: status.getUserMentionEntities.map(_.getScreenName).toList).toSet - userName
-    //  
-    //  val text = participants.map(p=>"@"+p).mkString(" ") + " OK."
-    //  val reply = new StatusUpdate(text).inReplyToStatusId(status.getId)
-    //  println("Replying: " + text)
-    //  user.updateStatus(reply)
-    //}}
-
-
-    //val anlpFollowers = user.getFollowersIDs("appliednlp",-1).getIDs
-    //anlpFollowers.foreach { id => {
-    //  println("Following: " + user.showUser(id).getName)
-    //  user.createFriendship(id)
-    //}}
-
-    //var count = 0
-    //val jmbFollowers = user.getFollowersIDs("jasonbaldridge",-1).getIDs
-    //jmbFollowers.foreach { id => {
-    //  println("Following: " + user.showUser(id).getScreenName)
-    //  count += 1
-    //  println(count)
-    //  //user.createFriendship(id)
-    //}}
-
-    
-    //val friends = user.getFriendsIDs(-1).getIDs
-    //friends.foreach { friendId => {
-    //  val user = user.showUser(friendId)
-    //  val status = user.getStatus
-    //  val text = if (status==null) "" else status.getText
-    //  println(user.getName + ": " + text)
-    //  
-    //  if (status!=null) {
-    //	user.retweetStatus(status.getId)
-    //  }
-    //}}
-
-  }
-}

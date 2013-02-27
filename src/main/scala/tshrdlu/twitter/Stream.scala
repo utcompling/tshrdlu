@@ -1,21 +1,35 @@
 package tshrdlu.twitter
 
+/**
+ * Copyright 2013 Jason Baldridge
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import twitter4j.TwitterStreamFactory
-import twitter4j.conf.Configuration
-import TwitterAuthentication._
 
 /**
  * Extend this to have a stream that is configured and ready to use.
  */
-trait BaseStream {
-  val stream = new TwitterStreamFactory(configFromProperties).getInstance
+trait StreamInstance {
+  val stream = new TwitterStreamFactory().getInstance
 }
 
 /**
  * An example of how to obtain a certain number of tweets from the
  * sample stream and cluster them.
  */
-object ClusterStream extends BaseStream {
+object ClusterStream extends StreamInstance {
 
   val engTweets = new EnglishStatusAccumulator
 
