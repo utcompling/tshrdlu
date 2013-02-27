@@ -3,7 +3,7 @@ package tshrdlu.twitter
 import twitter4j.Status
 import nak.cluster._
 import nak.util.CollectionUtil._
-import chalk.util.SimpleTokenizer
+import tshrdlu.util.SimpleTokenizer
 import tshrdlu.util.English._
 
 /**

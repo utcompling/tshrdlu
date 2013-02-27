@@ -61,7 +61,7 @@ object ReactiveBot {
 class UserStatusResponder(twitter: Twitter) 
 extends StatusListenerAdaptor with UserStreamListenerAdaptor {
 
-  import chalk.util.SimpleTokenizer
+  import tshrdlu.util.SimpleTokenizer
   import collection.JavaConversions._
 
   val username = twitter.getScreenName
