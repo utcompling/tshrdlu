@@ -60,7 +60,19 @@ abstract class Language(code: String) {
 /**
  * English information.
  */
-class English extends Language("eng") {
+object English extends Language("eng") {
   lazy val stopwords = getLexicon("stopwords.english")
   lazy val vocabulary = getLexicon("masc_vocab.txt.gz") ++ stopwords
+
+  def isEnglish(text: String) = {
+    val words = SimpleTokenizer(removeNonLanguage(text).toLowerCase)
+    val count = words.count(vocabulary) 
+    count > 1 && count.toDouble/words.length > .3
+  }
+
+  def removeNonLanguage(text: String) =
+    text.replaceAll("[@#][A-Za-z_]+","")
+      .replaceAll("""http[^\s]+""","")
+      .replaceAll("\\s+"," ")
 }
+
