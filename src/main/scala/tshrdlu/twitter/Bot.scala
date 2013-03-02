@@ -70,7 +70,7 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
   lazy val FollowRE = """(?i)(?<=follow)(\s+(me|@[a-z]+))+""".r
 
   // Pull just the lead mention from a tweet.
-  lazy val StripLeadMentionRE = """(?:)^@[a-z]+\s(.*)$""".r
+  lazy val StripLeadMentionRE = """(?:)^@[a-z_0-9]+\s(.*)$""".r
 
   // Pull the RT and mentions from the front of a tweet.
   lazy val StripMentionsRE = """(?:)(?:RT\s)?(?:(?:@[a-z]+\s))+(.*)$""".r   
