@@ -76,3 +76,11 @@ object English extends Language("eng") {
       .replaceAll("\\s+"," ")
 }
 
+/**
+ * English information.
+ */
+class English extends Language("eng") {
+  lazy val stopwords = getLexicon("stopwords.english")
+  lazy val vocabulary = getLexicon("masc_vocab.txt.gz") ++ stopwords
+}
+
