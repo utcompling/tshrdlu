@@ -50,7 +50,6 @@ object ReactiveBot {
 
 }
 
-
 /**
  * A listener that looks for messages to the user and replies using the
  * doActionGetReply method. Actions can be doing things like following,
@@ -69,8 +68,11 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
   // Recognize a follow command
   lazy val FollowRE = """(?i)(?<=follow)(\s+(me|@[a-z]+))+""".r
 
+  // Recognize a follow all _anlp users
+  lazy val FollowAllANLPRE = """(follow anlp users)""".r
+
   // Pull just the lead mention from a tweet.
-  lazy val StripLeadMentionRE = """(?:)^@[a-z]+\s(.*)$""".r
+  lazy val StripLeadMentionRE = """(?:)^@[a-zA-Z0-9_]+\s(.*)$""".r
 
   // Pull the RT and mentions from the front of a tweet.
   lazy val StripMentionsRE = """(?:)(?:RT\s)?(?:(?:@[a-z]+\s))+(.*)$""".r   
@@ -94,7 +96,21 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
   def doActionGetReply(status: Status) = {
     val text = status.getText.toLowerCase
     val followMatches = FollowRE.findAllIn(text)
-    if (!followMatches.isEmpty) {
+    val followMatchesANLP = FollowAllANLPRE.findAllIn(text)
+    if (!followMatchesANLP.isEmpty) {
+      val cursor = -1
+      val friendIDs = twitter.getFriendsIDs("appliednlp", cursor)
+
+      val anlpStudentIDs = friendIDs.getIDs.filter{ id =>
+        val user = twitter.showUser(id)
+        user.getScreenName().endsWith("_anlp") && user.getScreenName() != "eric_anlp"
+      }
+      //anlpStudentIDs.foreach(println)
+
+      anlpStudentIDs.foreach(twitter.createFriendship)
+      "OK. I FOLLOWED THE STUDENTS IN THE ANLP CLASS."
+    }
+    else if (!followMatches.isEmpty) {
       val followSet = followMatches
 	.next
 	.drop(1)
@@ -107,7 +123,6 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
       followSet.foreach(twitter.createFriendship)
       "OK. I FOLLOWED " + followSet.map("@"+_).mkString(" ") + "."  
     } else {
-      
       try {
 	val StripLeadMentionRE(withoutMention) = text
 	val statusList = 
@@ -140,7 +155,7 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
       .filterNot(_.contains('@'))
       .filter(tshrdlu.util.English.isEnglish)
 
-    if (useableTweets.isEmpty) "NO." else useableTweets.head
+    if (useableTweets.isEmpty) "NO from extractText." else useableTweets.head
   }
 
 }
