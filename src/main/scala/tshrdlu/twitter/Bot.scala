@@ -18,9 +18,6 @@ package tshrdlu.twitter
 
 import twitter4j._
 import collection.JavaConversions._
-import cc.mallet.examples.TopicModel
-
-
 
 /**
  * Base trait with properties default for Configuration.
@@ -53,6 +50,7 @@ object ReactiveBot {
 
 }
 
+
 /**
  * A listener that looks for messages to the user and replies using the
  * doActionGetReply method. Actions can be doing things like following,
@@ -60,7 +58,8 @@ object ReactiveBot {
  * implementation searches for tweets on the API that have overlapping
  * vocabulary and replies with one of those.
  */
-class UserStatusResponder(twitter: Twitter) extends StatusListenerAdaptor with UserStreamListenerAdaptor {
+class UserStatusResponder(twitter: Twitter) 
+extends StatusListenerAdaptor with UserStreamListenerAdaptor {
 
   import tshrdlu.util.SimpleTokenizer
   import collection.JavaConversions._
@@ -70,11 +69,8 @@ class UserStatusResponder(twitter: Twitter) extends StatusListenerAdaptor with U
   // Recognize a follow command
   lazy val FollowRE = """(?i)(?<=follow)(\s+(me|@[a-z]+))+""".r
 
-  // Recognize a follow all _anlp users
-  lazy val FollowAllANLPRE = """(follow anlp users)""".r
-
   // Pull just the lead mention from a tweet.
-  lazy val StripLeadMentionRE = """(?:)^@[a-zA-Z0-9_]+\s(.*)$""".r
+  lazy val StripLeadMentionRE = """(?:)^@[a-z_0-9]+\s(.*)$""".r
 
   // Pull the RT and mentions from the front of a tweet.
   lazy val StripMentionsRE = """(?:)(?:RT\s)?(?:(?:@[a-z]+\s))+(.*)$""".r   
@@ -98,21 +94,7 @@ class UserStatusResponder(twitter: Twitter) extends StatusListenerAdaptor with U
   def doActionGetReply(status: Status) = {
     val text = status.getText.toLowerCase
     val followMatches = FollowRE.findAllIn(text)
-    val followMatchesANLP = FollowAllANLPRE.findAllIn(text)
-    if (!followMatchesANLP.isEmpty) {
-      val cursor = -1
-      val friendIDs = twitter.getFriendsIDs("appliednlp", cursor)
-
-      val anlpStudentIDs = friendIDs.getIDs.filter{ id =>
-        val user = twitter.showUser(id)
-        user.getScreenName().endsWith("_anlp") && user.getScreenName() != "eric_anlp"
-      }
-      //anlpStudentIDs.foreach(println)
-
-      anlpStudentIDs.foreach(twitter.createFriendship)
-      "OK. I FOLLOWED THE STUDENTS IN THE ANLP CLASS."
-    }
-    else if (!followMatches.isEmpty) {
+    if (!followMatches.isEmpty) {
       val followSet = followMatches
 	.next
 	.drop(1)
@@ -125,11 +107,16 @@ class UserStatusResponder(twitter: Twitter) extends StatusListenerAdaptor with U
       followSet.foreach(twitter.createFriendship)
       "OK. I FOLLOWED " + followSet.map("@"+_).mkString(" ") + "."  
     } else {
+      
       try {
 	val StripLeadMentionRE(withoutMention) = text
 	val statusList = 
 	  SimpleTokenizer(withoutMention)
 	    .filter(_.length > 3)
+	    .filter(_.length < 10)
+	    .filterNot(_.contains('/'))
+	    .filter(tshrdlu.util.English.isSafe)
+	    .sortBy(- _.length)
 	    .toSet
 	    .take(3)
 	    .toList
@@ -143,9 +130,10 @@ class UserStatusResponder(twitter: Twitter) extends StatusListenerAdaptor with U
   }
 
   /**
-   * Go through the list of Statuses, filter out the non-English ones,
-   * strip mentions from the front, filter any that have remaining
-   * mentions, and then return the head of the set, if it exists.
+   * Go through the list of Statuses, filter out the non-English ones and
+   * any that contain (known) vulgar terms, strip mentions from the front,
+   * filter any that have remaining mentions or links, and then return the
+   * head of the set, if it exists.
    */
   def extractText(statusList: List[Status]) = {
     val useableTweets = statusList
@@ -155,10 +143,11 @@ class UserStatusResponder(twitter: Twitter) extends StatusListenerAdaptor with U
 	case x => x
       }
       .filterNot(_.contains('@'))
+      .filterNot(_.contains('/'))
       .filter(tshrdlu.util.English.isEnglish)
+      .filter(tshrdlu.util.English.isSafe)
 
-    if (useableTweets.isEmpty) "NO from extractText." else useableTweets.head
+    if (useableTweets.isEmpty) "NO." else useableTweets.head
   }
 
 }
-
