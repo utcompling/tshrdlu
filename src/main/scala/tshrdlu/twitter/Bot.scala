@@ -69,6 +69,9 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
   // Recognize a follow command
   lazy val FollowRE = """(?i)(?<=follow)(\s+(me|@[a-z]+))+""".r
 
+  // Recognize a follow all _anlp users
+  lazy val FollowAllANLPRE = """(follow anlp users)""".r
+  
   // Pull just the lead mention from a tweet.
   lazy val StripLeadMentionRE = """(?:)^@[a-z_0-9]+\s(.*)$""".r
 
@@ -94,7 +97,20 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
   def doActionGetReply(status: Status) = {
     val text = status.getText.toLowerCase
     val followMatches = FollowRE.findAllIn(text)
-    if (!followMatches.isEmpty) {
+    val followMatchesANLP = FollowAllANLPRE.findAllIn(text)
+    if (!followMatchesANLP.isEmpty) {
+      val cursor = -1
+      val friendIDs = twitter.getFriendsIDs("appliednlp", cursor)
+
+      val anlpStudentIDs = friendIDs.getIDs.filter{ id =>
+        val user = twitter.showUser(id)
+        user.getScreenName().endsWith("_anlp") && user.getScreenName() != "eric_anlp"
+      }
+      //anlpStudentIDs.foreach(println)
+
+      anlpStudentIDs.foreach(twitter.createFriendship)
+      "OK. I FOLLOWED THE STUDENTS IN THE ANLP CLASS."
+    } else if (!followMatches.isEmpty) {
       val followSet = followMatches
 	.next
 	.drop(1)
