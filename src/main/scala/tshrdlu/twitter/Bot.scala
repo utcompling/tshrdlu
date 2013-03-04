@@ -18,6 +18,11 @@ package tshrdlu.twitter
 
 import twitter4j._
 import collection.JavaConversions._
+import cc.mallet.util._
+import cc.mallet.types._
+import cc.mallet.pipe._
+import cc.mallet.pipe.iterator._
+import cc.mallet.topics._
 
 /**
  * Base trait with properties default for Configuration.
