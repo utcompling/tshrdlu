@@ -16,5 +16,6 @@ resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/release
 libraryDependencies ++= Seq(
   "org.twitter4j" % "twitter4j-core" % "3.0.3",
   "org.twitter4j" % "twitter4j-stream" % "3.0.3",
-  "org.scalanlp" % "nak" % "1.1.0"
+  "org.scalanlp" % "nak" % "1.1.0",
+  "cc.mallet" % "mallet" % "2.0.7"
 )

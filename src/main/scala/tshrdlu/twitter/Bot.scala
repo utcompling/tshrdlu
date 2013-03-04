@@ -18,6 +18,9 @@ package tshrdlu.twitter
 
 import twitter4j._
 import collection.JavaConversions._
+import cc.mallet.examples.TopicModel
+
+
 
 /**
  * Base trait with properties default for Configuration.
@@ -57,8 +60,7 @@ object ReactiveBot {
  * implementation searches for tweets on the API that have overlapping
  * vocabulary and replies with one of those.
  */
-class UserStatusResponder(twitter: Twitter) 
-extends StatusListenerAdaptor with UserStreamListenerAdaptor {
+class UserStatusResponder(twitter: Twitter) extends StatusListenerAdaptor with UserStreamListenerAdaptor {
 
   import tshrdlu.util.SimpleTokenizer
   import collection.JavaConversions._
