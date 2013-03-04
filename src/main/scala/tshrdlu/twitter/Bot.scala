@@ -113,6 +113,10 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
 	val statusList = 
 	  SimpleTokenizer(withoutMention)
 	    .filter(_.length > 3)
+	    .filter(_.length < 10)
+	    .filterNot(_.contains('/'))
+	    .filter(tshrdlu.util.English.isSafe)
+	    .sortBy(- _.length)
 	    .toSet
 	    .take(3)
 	    .toList
@@ -126,9 +130,10 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
   }
 
   /**
-   * Go through the list of Statuses, filter out the non-English ones,
-   * strip mentions from the front, filter any that have remaining
-   * mentions, and then return the head of the set, if it exists.
+   * Go through the list of Statuses, filter out the non-English ones and
+   * any that contain (known) vulgar terms, strip mentions from the front,
+   * filter any that have remaining mentions or links, and then return the
+   * head of the set, if it exists.
    */
   def extractText(statusList: List[Status]) = {
     val useableTweets = statusList
@@ -138,7 +143,9 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
 	case x => x
       }
       .filterNot(_.contains('@'))
+      .filterNot(_.contains('/'))
       .filter(tshrdlu.util.English.isEnglish)
+      .filter(tshrdlu.util.English.isSafe)
 
     if (useableTweets.isEmpty) "NO." else useableTweets.head
   }
