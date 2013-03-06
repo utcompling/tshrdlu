@@ -67,7 +67,7 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
   val username = twitter.getScreenName
 
   // Recognize a follow command
-  lazy val FollowRE = """(?i)(?<=follow)(\s+(me|@[a-z]+))+""".r
+  lazy val FollowRE = """(?i)(?<=follow)(\s+(me|@[a-z_0-9]+))+""".r
 
   // Pull just the lead mention from a tweet.
   lazy val StripLeadMentionRE = """(?:)^@[a-z_0-9]+\s(.*)$""".r
