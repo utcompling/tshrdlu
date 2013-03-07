@@ -104,8 +104,9 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
 	  case screenName => screenName.drop(1)
 	}
 	.toSet
-      followSet.foreach(twitter.createFriendship)
-      "OK. I FOLLOWED " + followSet.map("@"+_).mkString(" ") + "."  
+      //followSet.foreach(twitter.createFriendship)
+      //"OK. I FOLLOWED " + followSet.map("@"+_).mkString(" ") + "."  
+      "NO."
     } else {
       
       try {
