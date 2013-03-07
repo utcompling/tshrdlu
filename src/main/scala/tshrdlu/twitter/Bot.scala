@@ -24,6 +24,7 @@ import cc.mallet.pipe._
 import cc.mallet.pipe.iterator._
 import cc.mallet.topics._
 import java.util._
+import main.scala.tshrdlu.twitter.TopicModeler
 
 //import java.util._
 import java.util.regex._
@@ -50,9 +51,15 @@ class ReactiveBot extends TwitterInstance with StreamInstance {
 object ReactiveBot {
 
   def main(args: Array[String]) {
+    if (args.length < 1) {
+      println("Please input the path of the formatted topic words text file")
+      System.exit(0)
+    }
     val bot = new ReactiveBot
-    bot.stream.user
 
+    val modeler = new TopicModeler(args(0))
+    modeler.wordTopicsMap.foreach(println)
+    bot.stream.user
     // If you aren't following a lot of users and want to get some
     // tweets to test out, use this instead of bot.stream.user.
     //bot.stream.sample
