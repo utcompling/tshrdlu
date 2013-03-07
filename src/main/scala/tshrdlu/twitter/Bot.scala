@@ -150,14 +150,13 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
 			.flatMap(w => modeler.wordTopicsMap.get(w))
 			.flatten
 	//statusTopicList.foreach(println)
-	val topicWords:List[String] = statusTopicList.map(topic => modeler.topicWordsMap.getOrElse(topic,Set(" "))).flatten
+	val topicWords:List[String] = statusTopicList.map(topic => modeler.topicWordsMap.getOrElse(topic,Set(" "))).take(4).flatten
 	val statusQueryList = 
 		topicWords
 		.filter(_.length > 4)
                 .filter(_.length < 11)
 	        .sortBy(- _.length)
 		.toSet
-		.take(4)
 		.toList
 	statusQueryList.foreach(println)
 
@@ -178,7 +177,7 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
 	    .toList
 	    .flatMap(w => twitter.search(new Query(w)).getTweets)*/
 	
-	extractText(statusList,statusTopicList)
+	extractText(statusList,statusTopicList.toSet)
       }	catch { 
 	case _: Throwable => "NO."
       }
@@ -192,7 +191,7 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
    * filter any that have remaining mentions or links, and then return the
    * head of the set, if it exists.
    */
-  def extractText(statusList: List[Status], statusTopics: List[String]) = {
+  def extractText(statusList: List[Status], statusTopics: Set[String]) = {
     val useableTweets = statusList
       .map(_.getText)
       .map {
@@ -203,7 +202,7 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
       .filterNot(_.contains('/'))
       .filter(tshrdlu.util.English.isEnglish)
       .filter(tshrdlu.util.English.isSafe)
-    
+    println("Original: " + statusTopics)
     //Use topic model to select response
     val topicDistributions = for ( tweet <- useableTweets) yield {
     				SimpleTokenizer(tweet).filter(_.length > 4)
@@ -212,9 +211,13 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
 				.toList
 				.flatMap(w => modeler.wordTopicsMap.get(w))
 				.flatten}
-    val topicSimilarity = topicDistributions.map(ids => ids.intersect(statusTopics).size)
-    val indexMax = topicSimilarity.toList.zipWithIndex.maxBy(_._1)._2
     
+    val topicSimilarity = topicDistributions.map(ids => ids.toSet.intersect(statusTopics).size * {if(statusTopics.size -ids.toSet.size ==0 ) 1 else (1/math.abs(statusTopics.size - ids.toSet.size)).toDouble})
+    
+    val indexMax = topicSimilarity.toList.zipWithIndex.maxBy(_._1)._2
+    println(topicDistributions(indexMax))
+    println(topicSimilarity(indexMax))
+    println("Max: " + indexMax)
     if (useableTweets.isEmpty) "NO." else useableTweets(indexMax)
   }
 
