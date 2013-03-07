@@ -18,17 +18,10 @@ package tshrdlu.twitter
 
 import twitter4j._
 import collection.JavaConversions._
-import cc.mallet.util._
-import cc.mallet.types._
-import cc.mallet.pipe._
-import cc.mallet.pipe.iterator._
-import cc.mallet.topics._
-import java.util._
+
 import main.scala.tshrdlu.twitter.TopicModeler
 
-//import java.util._
-import java.util.regex._
-import java.io._
+
 
 /**
  * Base trait with properties default for Configuration.
@@ -36,20 +29,23 @@ import java.io._
  */
 trait TwitterInstance {
   val twitter = new TwitterFactory().getInstance
+  
 }
 
 /**
  * A bot that can monitor the stream and also take actions for the user.
  */
 class ReactiveBot extends TwitterInstance with StreamInstance {
-  stream.addListener(new UserStatusResponder(twitter))
+  val modeler = new TopicModeler("minTopicKeys.txt")
+  stream.addListener(new UserStatusResponder(twitter,modeler))
+  
 }
 
 /**
  * Companion object for ReactiveBot with main method.
  */
 object ReactiveBot {
-
+  
   def main(args: Array[String]) {
     if (args.length < 1) {
       println("Please input the path of the formatted topic words text file")
@@ -57,8 +53,8 @@ object ReactiveBot {
     }
     val bot = new ReactiveBot
 
-    val modeler = new TopicModeler(args(0))
-    modeler.wordTopicsMap.foreach(println)
+    //val modeler = new TopicModeler(args(0))
+    
     bot.stream.user
     // If you aren't following a lot of users and want to get some
     // tweets to test out, use this instead of bot.stream.user.
@@ -75,11 +71,13 @@ object ReactiveBot {
  * implementation searches for tweets on the API that have overlapping
  * vocabulary and replies with one of those.
  */
-class UserStatusResponder(twitter: Twitter) 
+class UserStatusResponder(twitter: Twitter, modeler: TopicModeler) 
 extends StatusListenerAdaptor with UserStreamListenerAdaptor {
 
   import tshrdlu.util.SimpleTokenizer
   import collection.JavaConversions._
+
+  
 
   val username = twitter.getScreenName
 
@@ -96,6 +94,7 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
   lazy val StripMentionsRE = """(?:)(?:RT\s)?(?:(?:@[a-z]+\s))+(.*)$""".r   
   override def onStatus(status: Status) {
     println("New status: " + status.getText)
+    
     val replyName = status.getInReplyToScreenName
     if (replyName == username) {
       println("*************")
@@ -143,7 +142,31 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
       
       try {
 	val StripLeadMentionRE(withoutMention) = text
-	val statusList = 
+        val statusTopicList = SimpleTokenizer(withoutMention)
+			.filter(_.length > 4)
+			.toSet
+			.take(3)
+			.toList
+			.flatMap(w => modeler.wordTopicsMap.get(w))
+			.flatten
+	//statusTopicList.foreach(println)
+	val topicWords:List[String] = statusTopicList.map(topic => modeler.topicWordsMap.getOrElse(topic,Set(" "))).flatten
+	val statusQueryList = 
+		topicWords
+		.filter(_.length > 4)
+                .filter(_.length < 11)
+	        .sortBy(- _.length)
+		.toSet
+		.take(4)
+		.toList
+	statusQueryList.foreach(println)
+
+	// search for tweets based on words from same topic as original tweet
+        val statusList = statusQueryList.flatMap(w => twitter.search(new Query(w)).getTweets)
+
+	
+	// Original statusList
+	/*val statusList = 
 	  SimpleTokenizer(withoutMention)
 	    .filter(_.length > 3)
 	    .filter(_.length < 10)
@@ -153,8 +176,9 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
 	    .toSet
 	    .take(3)
 	    .toList
-	    .flatMap(w => twitter.search(new Query(w)).getTweets)
-	extractText(statusList)
+	    .flatMap(w => twitter.search(new Query(w)).getTweets)*/
+	
+	extractText(statusList,statusTopicList)
       }	catch { 
 	case _: Throwable => "NO."
       }
@@ -168,7 +192,7 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
    * filter any that have remaining mentions or links, and then return the
    * head of the set, if it exists.
    */
-  def extractText(statusList: List[Status]) = {
+  def extractText(statusList: List[Status], statusTopics: List[String]) = {
     val useableTweets = statusList
       .map(_.getText)
       .map {
@@ -179,8 +203,19 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
       .filterNot(_.contains('/'))
       .filter(tshrdlu.util.English.isEnglish)
       .filter(tshrdlu.util.English.isSafe)
-
-    if (useableTweets.isEmpty) "NO." else useableTweets.head
+    
+    //Use topic model to select response
+    val topicDistributions = for ( tweet <- useableTweets) yield {
+    				SimpleTokenizer(tweet).filter(_.length > 4)
+				.toSet
+				.take(3)
+				.toList
+				.flatMap(w => modeler.wordTopicsMap.get(w))
+				.flatten}
+    val topicSimilarity = topicDistributions.map(ids => ids.intersect(statusTopics).size)
+    val indexMax = topicSimilarity.toList.zipWithIndex.maxBy(_._1)._2
+    
+    if (useableTweets.isEmpty) "NO." else useableTweets(indexMax)
   }
 
 }
