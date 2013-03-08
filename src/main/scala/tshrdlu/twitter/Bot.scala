@@ -47,10 +47,8 @@ class ReactiveBot extends TwitterInstance with StreamInstance {
 object ReactiveBot {
   
   def main(args: Array[String]) {
-    if (args.length < 1) {
-      println("Please input the path of the formatted topic words text file")
-      System.exit(0)
-    }
+ 
+  
     val bot = new ReactiveBot
 
     //val modeler = new TopicModeler(args(0))
