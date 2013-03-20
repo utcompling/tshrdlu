@@ -173,12 +173,8 @@ object Settings {
    * </ul>
    */
   val BaseIndexPath: String = {
-    val env = System.getenv("TSHRDLU_INDEX_DIR")
-    if (env != null) {
-      new File(env).mkdirs();
-      env
-    } else {
-      System.getProperty("user.home");
-    }
+    val result = Option(System.getenv("TSHRDLU_INDEX_DIR")).getOrElse(System.getProperty("user.home"))
+    new File(result).mkdirs()
+    result
   }
 }
