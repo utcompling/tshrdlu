@@ -28,6 +28,11 @@ can set the path in your `.bashrc` file as follows:
 Once you have taken care of these three things, you should be able to
 build and use tshrdlu.
 
+If you plan to index and search objects using the provided code based on
+Lucene, you can customize the directory where on-disk indexes are stored (the
+default is your home directory) by setting the environment variable
+`TSHRDLU_INDEX_DIR`.
+
 
 ## Building the system from source
 
