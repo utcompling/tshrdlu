@@ -168,17 +168,14 @@ object Settings {
    * <ul>
    *   <li><code>[base]</code> is the value of the
    *       <code>TSHRDLU_INDEX_DIR</code> environment variable if set,
-   *       otherwise the user's home directory
+   *       otherwise the temp directory, in the dir "tshrdlu".
    *   <li><code>[indexName]</code> is the name of the index</li>
    * </ul>
    */
   val BaseIndexPath: String = {
-    val env = System.getenv("TSHRDLU_INDEX_DIR")
-    if (env != null) {
-      new File(env).mkdirs();
-      env
-    } else {
-      System.getProperty("user.home");
-    }
+    val result = Option(System.getenv("TSHRDLU_INDEX_DIR")).getOrElse(
+      new File(new File(System.getProperty("java.io.tmpdir")), "tshrdlu")).toString
+    new File(result).mkdirs()
+    result
   }
 }
