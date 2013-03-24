@@ -19,8 +19,6 @@ SCALA_LIB="$HOME/.sbt/boot/scala-2.10.0/lib/scala-library.jar"
 
 CP="$TSHRDLU_DIR/target/classes:$SCALA_LIB:$TSHRDLU_DIR/src/main/resources:$MANAGED_JARS:$UNMANAGED_JARS"
 
-echo $CP
-
 JAVA="$JAVA_HOME/bin/java"
 JAVA_COMMAND="$JAVA -classpath $CP -Dtshrdlu.dir=$TSHRDLU_DIR"
 
