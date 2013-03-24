@@ -16,55 +16,178 @@ package tshrdlu.twitter
  * limitations under the License.
  */
 
+import akka.actor._
 import twitter4j._
 import collection.JavaConversions._
 
 /**
- * Base trait with properties default for Configuration.
- * Gets a Twitter instance set up and ready to use.
+ * The main actor for a Bot, which basically performance the actions that a person
+ * might do as an active Twitter user.
  */
-trait TwitterInstance {
+class Bot extends Actor with ActorLogging {
+  import Bot._
+
+  val userStream = context.actorOf(Props[UserStreamDispatcher], name = "UserStream")
   val twitter = new TwitterFactory().getInstance
+  val simpleReplier = context.actorOf(Props[SimpleReplyCreator], name = "SimpleReplier")
+
+  def receive = {
+    case Start => 
+      userStream ! RegisterReplier(simpleReplier)
+      userStream ! MonitorUserStream(true)
+      userStream ! MonitorUserStream(false)
+      userStream ! MonitorUserStream(true)
+
+    case Shutdown => userStream ! Shutdown
+
+    case SearchTwitter(query) => 
+      val tweets: Seq[Status] = twitter.search(query).getTweets.toSeq
+      sender ! tweets
+      
+    case UpdateStatus(update) => 
+      log.info("Posting update: " + update.getStatus)
+      twitter.updateStatus(update)
+  }
 }
 
 /**
- * A bot that can monitor the stream and also take actions for the user.
+ * An object to define the message types that the actors in the bot use for
+ * communication.
+ *
+ * Also provides the main method for starting up the bot. No configuration
+ * currently supported.
  */
-class ReactiveBot extends TwitterInstance with StreamInstance {
-  stream.addListener(new UserStatusResponder(twitter))
+object Bot {
+  
+  object Start
+  object Shutdown
+  case class MonitorUserStream(listen: Boolean)
+  case class RegisterReplier(replier: ActorRef)
+  case class ReplyToStatus(status: Status)
+  case class SearchTwitter(query: Query)
+  case class UpdateStatus(update: StatusUpdate)
+
+  def main (args: Array[String]) {
+    val system = ActorSystem("TwitterBot")
+    val bot = system.actorOf(Props[Bot], name = "Bot")
+    bot ! Start
+  }
+
 }
 
 /**
- * Companion object for ReactiveBot with main method.
+ * An actor that monitors the user stream and dispatches events to the
+ * appropriate actors that have been registered with it. Currently only
+ * attends to updates that are addressed to the user account.
  */
-object ReactiveBot {
+class UserStreamDispatcher extends Actor 
+with StatusListenerAdaptor with UserStreamListenerAdaptor with ActorLogging {
+  import Bot._
 
-  def main(args: Array[String]) {
-    val bot = new ReactiveBot
-    bot.stream.user
-    
-    // If you aren't following a lot of users and want to get some
-    // tweets to test out, use this instead of bot.stream.user.
-    //bot.stream.sample
+  val stream = new TwitterStreamFactory().getInstance
+  val username = stream.getScreenName
+
+  stream.addListener(this)
+
+  var repliers = Vector.empty[ActorRef]
+
+  def receive = {
+    case MonitorUserStream(listen) => 
+      if (listen) stream.user else stream.shutdown
+
+    case RegisterReplier(replier) => repliers = repliers :+ replier
+  }
+
+  override def onStatus(status: Status) {
+    log.info("New status: " + status.getText)
+    val replyName = status.getInReplyToScreenName
+    if (replyName == username) {
+      log.info("Replying to: " + status.getText)
+      repliers.foreach(_ ! ReplyToStatus(status))
+    }
   }
 
 }
 
 
 /**
- * A listener that looks for messages to the user and replies using the
- * doActionGetReply method. Actions can be doing things like following,
- * and replies can be generated just about any way you'd like. The base
- * implementation searches for tweets on the API that have overlapping
- * vocabulary and replies with one of those.
+ * An actor that constructs replies to a given status.
  */
-class UserStatusResponder(twitter: Twitter) 
-extends StatusListenerAdaptor with UserStreamListenerAdaptor {
-
+class SimpleReplyCreator extends Actor with ActorLogging {
+  import Bot._
+  import TwitterRegex._
   import tshrdlu.util.SimpleTokenizer
-  import collection.JavaConversions._
 
-  val username = twitter.getScreenName
+  import context.dispatcher
+  import akka.pattern.ask
+  import akka.util._
+  import scala.concurrent.duration._
+  import scala.concurrent.{Future,Await}
+  implicit val timeout = Timeout(10 seconds)
+
+  def receive = {
+    case ReplyToStatus(status) => 
+      log.info("Replying to: " + status.getText)
+      val replyName = status.getUser.getScreenName
+      
+      val candidatesFuture = getReplies(status, 139-replyName.length)
+      candidatesFuture onSuccess {
+        case candidates => 
+          val reply = "@" + replyName + " " + candidates.toSet.head
+          context.parent ! UpdateStatus(new StatusUpdate(reply).inReplyToStatusId(status.getId))
+      }
+  }
+  
+  /**
+   * Produce a reply to a status.
+   */
+  def getReplies(status: Status, maxLength: Int = 140): Future[Seq[String]] = {
+    val text = status.getText.toLowerCase match {
+      case StripLeadMentionRE(withoutMention) => withoutMention
+      case x => x
+    }
+    
+    // Get a sequence of futures of status sequences (one seq for each query)
+    val statusSeqFutures: Seq[Future[Seq[Status]]] = SimpleTokenizer(text)
+      .filter(_.length > 3)
+      .filter(_.length < 10)
+      .filterNot(_.contains('/'))
+      .filter(tshrdlu.util.English.isSafe)
+      .sortBy(- _.length)
+      .take(3)
+      .map(w => (context.parent ? SearchTwitter(new Query(w))).mapTo[Seq[Status]])
+
+    // Convert this to a Future of a single sequence of candidate replies
+    val statusesFuture: Future[Seq[Status]] = 
+      Future.sequence(statusSeqFutures).map(_.flatten).mapTo[Seq[Status]]
+
+    // Filter statuses to their text and make sure they are short enough to use.
+    statusesFuture.map(_.flatMap(getText).filter(_.length <= maxLength))
+  }
+
+  /**
+   * Go through the list of Statuses, filter out the non-English ones and
+   * any that contain (known) vulgar terms, strip mentions from the front,
+   * filter any that have remaining mentions or links, and then return the
+   * head of the set, if it exists.
+   */
+  def getText(status: Status): Option[String] = {
+    import tshrdlu.util.English.{isEnglish,isSafe}
+
+    val text = status.getText match {
+      case StripMentionsRE(rest) => rest
+      case x => x
+    }
+    
+    if (!text.contains('@') && !text.contains('/') && isEnglish(text) && isSafe(text))
+      Some(text)
+    else None
+  }
+
+}
+
+
+object TwitterRegex {
 
   // Recognize a follow command
   lazy val FollowRE = """(?i)(?<=follow)(\s+(me|@[a-z_0-9]+))+""".r
@@ -74,82 +197,6 @@ extends StatusListenerAdaptor with UserStreamListenerAdaptor {
 
   // Pull the RT and mentions from the front of a tweet.
   lazy val StripMentionsRE = """(?:)(?:RT\s)?(?:(?:@[a-z]+\s))+(.*)$""".r   
-  override def onStatus(status: Status) {
-    println("New status: " + status.getText)
-    val replyName = status.getInReplyToScreenName
-    if (replyName == username) {
-      println("*************")
-      println("New reply: " + status.getText)
-      val text = "@" + status.getUser.getScreenName + " " + doActionGetReply(status)
-      println("Replying: " + text)
-      val reply = new StatusUpdate(text).inReplyToStatusId(status.getId)
-      twitter.updateStatus(reply)
-    }
-  }
- 
-  /**
-   * A method that possibly takes an action based on a status
-   * it has received, and then produces a response.
-   */
-  def doActionGetReply(status: Status) = {
-    val text = status.getText.toLowerCase
-    val followMatches = FollowRE.findAllIn(text)
-    if (!followMatches.isEmpty) {
-      val followSet = followMatches
-	.next
-	.drop(1)
-	.split("\\s")
-	.map {
-	  case "me" => status.getUser.getScreenName
-	  case screenName => screenName.drop(1)
-	}
-	.toSet
-      //followSet.foreach(twitter.createFriendship)
-      //"OK. I FOLLOWED " + followSet.map("@"+_).mkString(" ") + "."  
-      "NO."
-    } else {
-      
-      try {
-	val StripLeadMentionRE(withoutMention) = text
-	val statusList = 
-	  SimpleTokenizer(withoutMention)
-	    .filter(_.length > 3)
-	    .filter(_.length < 10)
-	    .filterNot(_.contains('/'))
-	    .filter(tshrdlu.util.English.isSafe)
-	    .sortBy(- _.length)
-	    .toSet
-	    .take(3)
-	    .toList
-	    .flatMap(w => twitter.search(new Query(w)).getTweets)
-	extractText(statusList)
-      }	catch { 
-	case _: Throwable => "NO."
-      }
-    }
-  
-  }
 
-  /**
-   * Go through the list of Statuses, filter out the non-English ones and
-   * any that contain (known) vulgar terms, strip mentions from the front,
-   * filter any that have remaining mentions or links, and then return the
-   * head of the set, if it exists.
-   */
-  def extractText(statusList: List[Status]) = {
-    val useableTweets = statusList
-      .map(_.getText)
-      .map {
-	case StripMentionsRE(rest) => rest
-	case x => x
-      }
-      .filterNot(_.contains('@'))
-      .filterNot(_.contains('/'))
-      .filter(tshrdlu.util.English.isEnglish)
-      .filter(tshrdlu.util.English.isSafe)
-
-    if (useableTweets.isEmpty) "NO." else useableTweets.head
-  }
 
 }
-
