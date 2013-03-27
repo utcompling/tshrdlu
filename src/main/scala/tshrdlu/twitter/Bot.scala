@@ -21,6 +21,31 @@ import twitter4j._
 import collection.JavaConversions._
 
 /**
+ * An object to define the message types that the actors in the bot use for
+ * communication.
+ *
+ * Also provides the main method for starting up the bot. No configuration
+ * currently supported.
+ */
+object Bot {
+  
+  object Start
+  object Shutdown
+  case class MonitorUserStream(listen: Boolean)
+  case class RegisterReplier(replier: ActorRef)
+  case class ReplyToStatus(status: Status)
+  case class SearchTwitter(query: Query)
+  case class UpdateStatus(update: StatusUpdate)
+
+  def main (args: Array[String]) {
+    val system = ActorSystem("TwitterBot")
+    val bot = system.actorOf(Props[Bot], name = "Bot")
+    bot ! Start
+  }
+
+}
+
+/**
  * The main actor for a Bot, which basically performance the actions that a person
  * might do as an active Twitter user.
  *
@@ -71,31 +96,6 @@ with StatusListenerAdaptor with UserStreamListenerAdaptor {
 
 }
 
-/**
- * An object to define the message types that the actors in the bot use for
- * communication.
- *
- * Also provides the main method for starting up the bot. No configuration
- * currently supported.
- */
-object Bot {
-  
-  object Start
-  object Shutdown
-  case class MonitorUserStream(listen: Boolean)
-  case class RegisterReplier(replier: ActorRef)
-  case class ReplyToStatus(status: Status)
-  case class SearchTwitter(query: Query)
-  case class UpdateStatus(update: StatusUpdate)
-
-  def main (args: Array[String]) {
-    val system = ActorSystem("TwitterBot")
-    val bot = system.actorOf(Props[Bot], name = "Bot")
-    bot ! Start
-  }
-
-}
-
 
 class ReplierManager extends Actor with ActorLogging {
   import Bot._
@@ -104,9 +104,12 @@ class ReplierManager extends Actor with ActorLogging {
   import akka.pattern.ask
   import akka.util._
   import scala.concurrent.duration._
-  import scala.concurrent.Future
+  import scala.concurrent.{Future,Await}
   import scala.util.{Success,Failure}
   implicit val timeout = Timeout(10 seconds)
+
+  lazy val random = new scala.util.Random
+
   var repliers = Vector.empty[ActorRef]
 
   def receive = {
@@ -115,33 +118,21 @@ class ReplierManager extends Actor with ActorLogging {
 
     case ReplyToStatus(status) =>
 
-      val reply: Future[StatusUpdate] = (repliers(0) ? ReplyToStatus(status)).mapTo[StatusUpdate]
-      reply onSuccess {
-        case update => 
-          log.info("Success: " + update)
-          context.parent ! UpdateStatus(update)
+      val replyFutures: Seq[Future[StatusUpdate]] = 
+        repliers.map(r => (r ? ReplyToStatus(status)).mapTo[StatusUpdate])
+
+      val futureUpdate = Future.sequence(replyFutures).map { candidates =>
+        val numCandidates = candidates.length
+        println("NC: " + numCandidates)
+        if (numCandidates > 0)
+          candidates(random.nextInt(numCandidates))
+        else
+          randomFillerStatus(status)
       }
 
-      //println("**** 1 " + repliers.length)
-      //val replyFutures: Seq[Future[StatusUpdate]] = 
-      //  repliers.map(r => (r ? ReplyToStatus(status)).mapTo[StatusUpdate])
-      //println("**** 2 " + replyFutures.length) 
-      //println("**** 2.5 " + replyFutures.mkString("\n")) 
-      //
-      //Future.sequence(replyFutures) onComplete {
-      //  case Success(candidates) => 
-      //    println("Candidates: ")
-      //    candidates.foreach(println)
-      //    val update: StatusUpdate = 
-      //      if (candidates.length > 0) candidates.toSet.head
-      //      else randomFillerStatus(status)
-      //    context.parent ! UpdateStatus(update)
-      //  case Failure(failure) =>
-      //    val filler = randomFillerStatus(status)
-      //    println("**** 3 " + filler)
-      //    context.parent ! UpdateStatus(filler)
-      //}
-
+      val update = Await.result(futureUpdate, 20 seconds)
+      context.parent ! UpdateStatus(update)
+    
   }
 
   lazy val fillerStatusMessages = Vector(
@@ -167,7 +158,6 @@ class ReplierManager extends Actor with ActorLogging {
     "If I only had a brain..."
   )
 
-  lazy val random = new scala.util.Random
   lazy val numFillers = fillerStatusMessages.length
 
   def randomFillerStatus(status: Status) = {
@@ -189,19 +179,17 @@ trait BaseReplier extends Actor with ActorLogging {
 
   import context.dispatcher
   import scala.concurrent.Future
+  import akka.pattern.pipe
 
   def receive = {
     case ReplyToStatus(status) => 
       val replyName = status.getUser.getScreenName
       val candidatesFuture = getReplies(status, 138-replyName.length)
-      candidatesFuture onSuccess {
-        case candidates => 
-          val reply = "@" + replyName + " " + candidates.toSet.head
-        //context.parent ! UpdateStatus(new StatusUpdate(reply).inReplyToStatusId(status.getId))
-          log.info("Candidate reply: " + reply)
-          val update: StatusUpdate = new StatusUpdate(reply).inReplyToStatusId(status.getId)
-          sender ! update
-      }
+      candidatesFuture.map { candidates =>
+        val reply = "@" + replyName + " " + candidates.toSet.head
+        log.info("Candidate reply: " + reply)
+        new StatusUpdate(reply).inReplyToStatusId(status.getId)
+      } pipeTo sender
   }
 
   def getReplies(status: Status, maxLength: Int): Future[Seq[String]]
