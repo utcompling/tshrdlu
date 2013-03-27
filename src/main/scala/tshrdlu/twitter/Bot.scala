@@ -104,7 +104,7 @@ class ReplierManager extends Actor with ActorLogging {
   import akka.pattern.ask
   import akka.util._
   import scala.concurrent.duration._
-  import scala.concurrent.{Future,Await}
+  import scala.concurrent.Future
   import scala.util.{Success,Failure}
   implicit val timeout = Timeout(10 seconds)
 
@@ -130,8 +130,7 @@ class ReplierManager extends Actor with ActorLogging {
           randomFillerStatus(status)
       }
 
-      val update = Await.result(futureUpdate, 20 seconds)
-      context.parent ! UpdateStatus(update)
+      futureUpdate.foreach(context.parent ! UpdateStatus(_))
     
   }
 
