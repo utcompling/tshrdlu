@@ -7,7 +7,7 @@ This is a parent repository for [project](https://github.com/utcompling/applied-
 
 The name "tshrdlu" comes from Twitter+[SHRDLU](http://en.wikipedia.org/wiki/SHRDLU).
 
-For more information, updates, etc., follow [@appliednlp](https://twitter.com/appliednlp) on Twitter. The [@tshrdlu](https://twitter.com/tshrdlu) account may also start doing some tweeting of its own soon (by which I mean automated tweeting).
+For more information, updates, etc., follow [@appliednlp](https://twitter.com/appliednlp) on Twitter. The [@tshrdlu](https://twitter.com/tshrdlu) account is now doing some tweeting of its own (by which I mean automated tweeting, based on the code in this repository).
 
 ## Requirements
 
@@ -27,6 +27,11 @@ can set the path in your `.bashrc` file as follows:
 
 Once you have taken care of these three things, you should be able to
 build and use tshrdlu.
+
+If you plan to index and search objects using the provided code based
+on Lucene, you can customize the directory where on-disk indexes are
+stored (the default is the tempdir, check the directory `tshrdlu`) by
+setting the environment variable `TSHRDLU_INDEX_DIR`.
 
 
 ## Building the system from source
