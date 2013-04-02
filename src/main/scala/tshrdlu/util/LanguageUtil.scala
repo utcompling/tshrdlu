@@ -108,6 +108,19 @@ object English extends Language("eng") {
     SpacePuncRE.replaceAllIn(synTokens.mkString(" "), "$1")
   }
 
+  // Use this to get a Set of synonyms for a given word.
+  def synonymize(token: String, length: Int):Set[String] = {
+    val synTokens = if (!stopwords(token)) {
+        val syns = thesaurus.synonyms(token)
+        val numSyns = syns.size
+        if (numSyns > 0) syns.take(length)
+        else Set(token)
+      } else {
+        Set(token)
+      }
+    synTokens
+  }
+
 }
 
 /**
