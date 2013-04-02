@@ -17,7 +17,7 @@ object EnglishStatusStreamerDebug extends BaseStreamer with EnglishStatusListene
 /**
  * Output only tweets detected as English.
  */
-trait EnglishStatusListener extends StatusOnlyListener {
+trait EnglishStatusListener extends StatusListenerAdaptor {
 
   /**
    * If a status' text is English, print it.

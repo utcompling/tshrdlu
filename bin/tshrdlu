@@ -9,17 +9,20 @@ fi
 
 if [ -z $JAVA_MEM_FLAG ] 
 then
-    JAVA_MEM_FLAG=-Xmx4g
+    JAVA_MEM_FLAG=-Xmx6g
 fi
 
 MANAGED_JARS="`find $TSHRDLU_DIR/lib_managed -name '*.jar' -print | tr '\n' ':'`"
+UNMANAGED_JARS="`find $TSHRDLU_DIR/lib -name '*.jar' -print | tr '\n' ':'`"
 
 SCALA_LIB="$HOME/.sbt/boot/scala-2.10.0/lib/scala-library.jar"
 
-CP="$TSHRDLU_DIR/target/classes:$SCALA_LIB:$TSHRDLU_DIR/src/main/resources:$MANAGED_JARS"
+CP="$TSHRDLU_DIR/target/classes:$SCALA_LIB:$TSHRDLU_DIR/src/main/resources:$MANAGED_JARS:$UNMANAGED_JARS"
+
+echo $CP
 
 JAVA="$JAVA_HOME/bin/java"
-JAVA_COMMAND="$JAVA -classpath $CP -Dtshrdlu.dir=$TSHRDLU_DIR -Dtwitter4j.oauth.consumerKey=$TWITTER4J_OAUTH_CONSUMERKEY -Dtwitter4j.oauth.consumerSecret=$TWITTER4J_OAUTH_CONSUMERSECRET -Dtwitter4j.oauth.accessToken=$TWITTER4J_OAUTH_ACCESSTOKEN -Dtwitter4j.oauth.accessTokenSecret=$TWITTER4J_OAUTH_ACCESSTOKENSECRET"
+JAVA_COMMAND="$JAVA -classpath $CP -Dtshrdlu.dir=$TSHRDLU_DIR"
 
 CMD=$1
 shift
@@ -27,7 +30,7 @@ shift
 help()
 {
 cat <<EOF
-tshrdlu 0.1.0 commands: 
+tshrdlu 0.1.3 commands: 
 
   run           run the main method of a given class
 
