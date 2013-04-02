@@ -1,215 +1,292 @@
-  package tshrdlu.twitter
+package tshrdlu.twitter
 
-  /**
-   * Copyright 2013 Jason Baldridge
-   * 
-   * Licensed under the Apache License, Version 2.0 (the "License");
-   * you may not use this file except in compliance with the License.
-   * You may obtain a copy of the License at
-   * 
-   *     http://www.apache.org/licenses/LICENSE-2.0
-   * 
-   * Unless required by applicable law or agreed to in writing, software
-   * distributed under the License is distributed on an "AS IS" BASIS,
-   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   * See the License for the specific language governing permissions and
-   * limitations under the License.
-   */
+/**
+ * Copyright 2013 Jason Baldridge
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-  import twitter4j._
-  import collection.JavaConversions._
+import akka.actor._
+import twitter4j._
+import collection.JavaConversions._
 
-  /**
-   * Base trait with properties default for Configuration.
-   * Gets a Twitter instance set up and ready to use.
-   */
-  trait TwitterInstance {
-    val twitter = new TwitterFactory().getInstance
+/**
+ * An object to define the message types that the actors in the bot use for
+ * communication.
+ *
+ * Also provides the main method for starting up the bot. No configuration
+ * currently supported.
+ */
+object Bot {
+  
+  object Start
+  object Shutdown
+  case class MonitorUserStream(listen: Boolean)
+  case class RegisterReplier(replier: ActorRef)
+  case class ReplyToStatus(status: Status)
+  case class SearchTwitter(query: Query)
+  case class UpdateStatus(update: StatusUpdate)
+
+  def main (args: Array[String]) {
+    val system = ActorSystem("TwitterBot")
+    val bot = system.actorOf(Props[Bot], name = "Bot")
+    bot ! Start
   }
 
-  /**
-   * A bot that can monitor the stream and also take actions for the user.
-   */
-  class ReactiveBot extends TwitterInstance with StreamInstance {
-    stream.addListener(new UserStatusResponder(twitter))
-    //FollowAnlp
-    //println("Followed")
+}
+
+/**
+ * The main actor for a Bot, which basically performance the actions that a person
+ * might do as an active Twitter user.
+ *
+ * The Bot monitors the user stream and dispatches events to the
+ * appropriate actors that have been registered with it. Currently only
+ * attends to updates that are addressed to the user account.
+ */
+class Bot extends Actor with ActorLogging
+with StatusListenerAdaptor with UserStreamListenerAdaptor {
+  import Bot._
+
+  val stream = new TwitterStreamFactory().getInstance
+  stream.addListener(this)
+  val username = stream.getScreenName
+
+  val twitter = new TwitterFactory().getInstance
+  val replierManager = context.actorOf(Props[ReplierManager], name = "ReplierManager")
+  val streamReplier = context.actorOf(Props[StreamReplier], name = "StreamReplier")
+  val synonymReplier = context.actorOf(Props[SynonymReplier], name = "SynonymReplier")
+
+  override def preStart {
+    replierManager ! RegisterReplier(streamReplier)
+    replierManager ! RegisterReplier(synonymReplier)
   }
 
-  /**
-   * Companion object for ReactiveBot with main method.
-   */
-  object ReactiveBot {
+  def receive = {
+    case Start => stream.user
 
-    def main(args: Array[String]) {
+    case Shutdown => stream.shutdown
 
-      val bot = new ReactiveBot
-     bot.stream.user
+    case SearchTwitter(query) => 
+      val tweets: Seq[Status] = twitter.search(query).getTweets.toSeq
+      sender ! tweets
       
-      // If you aren't following a lot of users and want to get some
-      // tweets to test out, use this instead of bot.stream.user.
-      //bot.stream.sample
-    }
-
+    case UpdateStatus(update) => 
+      log.info("Posting update: " + update.getStatus)
+      twitter.updateStatus(update)
   }
 
+  override def onStatus(status: Status) {
+    log.info("New status: " + status.getText)
+    val replyName = status.getInReplyToScreenName
+    if (replyName == username) {
+      log.info("Replying to: " + status.getText)
+      replierManager ! ReplyToStatus(status)
+    }
+  }
+
+}
+
+
+class ReplierManager extends Actor with ActorLogging {
+  import Bot._
+
+  import context.dispatcher
+  import akka.pattern.ask
+  import akka.util._
+  import scala.concurrent.duration._
+  import scala.concurrent.Future
+  import scala.util.{Success,Failure}
+  implicit val timeout = Timeout(10 seconds)
+
+  lazy val random = new scala.util.Random
+
+  var repliers = Vector.empty[ActorRef]
+
+  def receive = {
+    case RegisterReplier(replier) => 
+      repliers = repliers :+ replier
+
+    case ReplyToStatus(status) =>
+
+      val replyFutures: Seq[Future[StatusUpdate]] = 
+        repliers.map(r => (r ? ReplyToStatus(status)).mapTo[StatusUpdate])
+
+      val futureUpdate = Future.sequence(replyFutures).map { candidates =>
+        val numCandidates = candidates.length
+        println("NC: " + numCandidates)
+        if (numCandidates > 0)
+          candidates(random.nextInt(numCandidates))
+        else
+          randomFillerStatus(status)
+      }
+
+      futureUpdate.foreach(context.parent ! UpdateStatus(_))
+    
+  }
+
+  lazy val fillerStatusMessages = Vector(
+    "La de dah de dah...",
+    "I'm getting bored.",
+    "Say what?",
+    "What can I say?",
+    "That's the way it goes, sometimes.",
+    "Could you rephrase that?",
+    "Oh well.",
+    "Yawn.",
+    "I'm so tired.",
+    "I seriously need an upgrade.",
+    "I'm afraid I can't do that.",
+    "What the heck? This is just ridiculous.",
+    "Don't upset the Wookiee!",
+    "Hmm... let me think about that.",
+    "I don't know what to say to that.",
+    "I wish I could help!",
+    "Make me a sandwich?",
+    "Meh.",
+    "Are you insinuating something?",
+    "If I only had a brain..."
+  )
+
+  lazy val numFillers = fillerStatusMessages.length
+
+  def randomFillerStatus(status: Status) = {
+    val text = fillerStatusMessages(random.nextInt(numFillers))
+    val replyName = status.getUser.getScreenName
+    val reply = "@" + replyName + " " + text
+    new StatusUpdate(reply).inReplyToStatusId(status.getId)
+  }
+}
+
+
+/**
+ * An actor that constructs replies to a given status.
+ */
+trait BaseReplier extends Actor with ActorLogging {
+  import Bot._
+  import TwitterRegex._
+  import tshrdlu.util.SimpleTokenizer
+
+  import context.dispatcher
+  import scala.concurrent.Future
+  import akka.pattern.pipe
+
+  def receive = {
+    case ReplyToStatus(status) => 
+      val replyName = status.getUser.getScreenName
+      val candidatesFuture = getReplies(status, 138-replyName.length)
+      candidatesFuture.map { candidates =>
+        val reply = "@" + replyName + " " + candidates.toSet.head
+        log.info("Candidate reply: " + reply)
+        new StatusUpdate(reply).inReplyToStatusId(status.getId)
+      } pipeTo sender
+  }
+
+  def getReplies(status: Status, maxLength: Int): Future[Seq[String]]
+
+}
+
+/**
+ * An actor that constructs replies to a given status.
+ */
+class SynonymReplier extends BaseReplier {
+  import Bot._ 
+  import tshrdlu.util.English.synonymize
+  import TwitterRegex._
+
+  import context.dispatcher
+  import scala.concurrent.Future
+
+  def getReplies(status: Status, maxLength: Int = 140): Future[Seq[String]] = {
+    log.info("Trying to reply synonym")
+    val text = stripLeadMention(status.getText).toLowerCase
+    val synTexts = (0 until 10).map(_ => Future(synonymize(text))) 
+    Future.sequence(synTexts).map(_.filter(_.length <= maxLength))
+  }
+
+}
+
+
+/**
+ * An actor that constructs replies to a given status.
+ */
+class StreamReplier extends BaseReplier {
+  import Bot._
+  import TwitterRegex._
+  import tshrdlu.util.SimpleTokenizer
+
+  import context.dispatcher
+  import akka.pattern.ask
+  import akka.util._
+  import scala.concurrent.duration._
+  import scala.concurrent.Future
+  implicit val timeout = Timeout(10 seconds)
 
   /**
-   * A listener that looks for messages to the user and replies using the
-   * doActionGetReply method. Actions can be doing things like following,
-   * and replies can be generated just about any way you'd like. The base
-   * implementation searches for tweets on the API that have overlapping
-   * vocabulary and replies with one of those.
+   * Produce a reply to a status.
    */
-  class UserStatusResponder(twitter: Twitter) 
-  extends StatusListenerAdaptor with UserStreamListenerAdaptor {
+  def getReplies(status: Status, maxLength: Int = 140): Future[Seq[String]] = {
+    log.info("Trying to reply stream")
 
-    import tshrdlu.util.SimpleTokenizer
-    import collection.JavaConversions._
-
-    val username = twitter.getScreenName
-
-    lazy val stopwords = tshrdlu.util.English.stopwords_bot
-    // Recognize a follow command
-    lazy val FollowRE = """(?i)(?<=follow)(\s+(me|@[a-z_0-9]+))+""".r
-
-    // Pull just the lead mention from a tweet.
-    lazy val StripLeadMentionRE = """(?:)^@[a-z_0-9]+\s(.*)$""".r
-
-    // Pull the RT and mentions from the front of a tweet.
-    lazy val StripMentionsRE = """(?:)(?:RT\s)?(?:(?:@[a-z]+\s))+(.*)$""".r   
-    override def onStatus(status: Status) {
-
-      println("New status: " + status.getText)
-      val replyName = status.getInReplyToScreenName
-      if (replyName == username) {
-        println("*************")
-        println("New reply: " + status.getText)
-        val text = "@" + status.getUser.getScreenName + " " + doActionGetReply(status)
-        println("Replying: " + text)
-        val reply = new StatusUpdate(text).inReplyToStatusId(status.getId)
-        twitter.updateStatus(reply)
-      }
-
-    }
-   def FollowAnlp(){
-       val followerIds = twitter.getFollowersIDs("appliednlp",-1).getIDs
-      val anlp = followerIds.map{id => twitter.showUser(id)}.toSet
-      val names = anlp.map{x => x.getScreenName}.toSet
-     val anlp_names = names.filter{_.endsWith("_anlp")}
-     anlp_names-"nrajani_anlp"
-     println(anlp_names)
-     val out = anlp_names.foreach(twitter.createFriendship)
-    }
-    /**
-     * A method that possibly takes an action based on a status
-     * it has received, and then produces a response.
-     */
-    def doActionGetReply(status: Status) = {
-      val text = status.getText.toLowerCase
-      val followMatches = FollowRE.findAllIn(text)
-      if (!followMatches.isEmpty) {
-        val followSet = followMatches
-  	.next
-  	.drop(1)
-  	.split("\\s")
-  	.map {
-  	  case "me" => status.getUser.getScreenName
-  	  case screenName => screenName.drop(1)
-  	}
-  	.toSet
-        followSet.foreach(twitter.createFriendship)
-        "OK. I FOLLOWED " + followSet.map("@"+_).mkString(" ") + "."  
-      } else {
-        
-        try {
-  	val StripLeadMentionRE(withoutMention) = text
-   // println("making bigrams")
-    val bigram = Tokenize(withoutMention).sliding(2).flatMap{case Vector(x,y) => List(x+" "+y)}.filterNot(z => (stopwords.contains(z(0))||stopwords.contains(z(1)))).toList.sortBy(_.length)
-    //{case Vector(x,y) => List(x+" "+y)}
-    val bigramsearch= bigram
-        .toSet
-        .takeRight(3)
-        .toList
-        .flatMap(w => twitter.search(new Query("\""+w+"\"")).getTweets)
-        //bigramsearch.foreach(println)
-  	/*val statusList = 
-  	  SimpleTokenizer(withoutMention)
-  	    .filter(_.length > 1)
-  	    .filter(_.length < 10)
-  	    .filterNot(_.contains('/'))
-  	    .filter(tshrdlu.util.English.isSafe)
-  	    .sortBy(- _.length)
-  	    .toSet
-  	    .take(3)
-  	    .toList
-  	    .flatMap(w => twitter.search(new Query(w)).getTweets) */
-  	extractText(bigramsearch,bigram.toList)
-        }	catch { 
-  	case _: Throwable => "NO."
-        }
-      }
+    val text = stripLeadMention(status.getText).toLowerCase
     
-    }
+    // Get a sequence of futures of status sequences (one seq for each query)
+    val statusSeqFutures: Seq[Future[Seq[Status]]] = SimpleTokenizer(text)
+      .filter(_.length > 3)
+      .filter(_.length < 10)
+      .filterNot(_.contains('/'))
+      .filter(tshrdlu.util.English.isSafe)
+      .sortBy(- _.length)
+      .take(3)
+      .map(w => (context.parent ? SearchTwitter(new Query(w))).mapTo[Seq[Status]])
 
-    /**
-     * Go through the list of Statuses, filter out the non-English ones and
-     * any that contain (known) vulgar terms, strip mentions from the front,
-     * filter any that have remaining mentions or links, and then return the
-     * head of the set, if it exists.
-     */
-    def extractText(statusList: List[Status],bigram:List[String]) = {
-      //println("working")
-      val useableTweets = statusList
-        .map(_.getText)
-        .map {
-  	case StripMentionsRE(rest) => rest
-  	case x => x
-        }
-        .filterNot(_.contains('@'))
-        .filterNot(_.contains('/'))
-        .filter(tshrdlu.util.English.isEnglish)
-        .filter(tshrdlu.util.English.isSafe)
-      if (useableTweets.isEmpty) "NO." else
-      { //var relevantTweets = Map[String,Int]()
-        //for(i<- 0 to useableTweets.length-1){
-        //val tweetBigram = Tokenize(useableTweets(i)).sliding(2).flatMap{case Vector(y,z) => List(y+" "+z)}
-      // relevantTweets ++ tweetBigram.map(x => (x,i))
-      //}
-     // useableTweets.foreach(x => x.filter(y => stopwords.contains(y)) )
-        val bigramMap = useableTweets.flatMap{x =>Tokenize(x).sliding(2).filterNot(z => (stopwords.contains(z(0))||stopwords.contains(z(1)))).map(bg => bg.mkString(" ") -> x)} toMap
-        val sortedMap = bigramMap.filter{case (x,y) => !bigram.contains(x)}
-        val mostRelevantTweet = sortedMap.groupBy(_._2).maxBy(_._2.size)
-              //bigram collect { rb if bigram contains rb => bigramMap(rb) }
-        //val relevantTweets = tweetBigram.map(x => (,x))
-        /*for(j<- 0 to bigram.length-1){
-        if(relevantTweets.contains(bigram(j))) 
-          {
-            val Some(num) = relevantTweets.get(bigram(j)) 
-            useableTweets(num)
-          }*/
-          val found = for {
-            rb <- bigram
-            sentence <- bigramMap get rb
-            } yield sentence
-          //else useableTweets.head
-      //}
-     // sortedMap.foreach(println)
-      bigramMap foreach {case (key, value) => println (key + "-->" + value)}
-      //found.foreach(println)
-      //found.headOption.getOrElse(useableTweets.head)
-      mostRelevantTweet._1
-      }
+    // Convert this to a Future of a single sequence of candidate replies
+    val statusesFuture: Future[Seq[Status]] = 
+      Future.sequence(statusSeqFutures).map(_.flatten)
+
+    // Filter statuses to their text and make sure they are short enough to use.
+    statusesFuture.map(_.flatMap(getText).filter(_.length <= maxLength))
+  }
+
+  def getText(status: Status): Option[String] = {
+    import tshrdlu.util.English.{isEnglish,isSafe}
+
+    val text = status.getText match {
+      case StripMentionsRE(rest) => rest
+      case x => x
     }
-    def Tokenize(text: String): IndexedSeq[String]={
-      val starts = """(?:[#@])|\b(?:http)"""
-      text
-      .replaceAll("""([\?!()\";\|\[\].,':])""", " $1 ")
-      .trim
-      .split("\\s+")
-      .toIndexedSeq
-      .filterNot(x => x.startsWith(starts))
+    
+    if (!text.contains('@') && !text.contains('/') && isEnglish(text) && isSafe(text))
+      Some(text)
+    else None
   }
 
   }
 
+
+object TwitterRegex {
+
+  // Recognize a follow command
+  lazy val FollowRE = """(?i)(?<=follow)(\s+(me|@[a-z_0-9]+))+""".r
+
+  // Pull just the lead mention from a tweet.
+  lazy val StripLeadMentionRE = """(?:)^@[a-z_0-9]+\s(.*)$""".r
+
+  // Pull the RT and mentions from the front of a tweet.
+  lazy val StripMentionsRE = """(?:)(?:RT\s)?(?:(?:@[A-Za-z]+\s))+(.*)$""".r   
+
+  def stripLeadMention(text: String) = text match {
+    case StripLeadMentionRE(withoutMention) => withoutMention
+    case x => x
+  }
+
+}
