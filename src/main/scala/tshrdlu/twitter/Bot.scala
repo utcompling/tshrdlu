@@ -64,10 +64,12 @@ class Bot extends Actor with ActorLogging {
   val replierManager = context.actorOf(Props[ReplierManager], name = "ReplierManager")
   val streamReplier = context.actorOf(Props[StreamReplier], name = "StreamReplier")
   val synonymReplier = context.actorOf(Props[SynonymReplier], name = "SynonymReplier")
+  val synonymStreamReplier = context.actorOf(Props[SynonymStreamReplier], name = "SynonymStreamReplier")
 
   override def preStart {
     replierManager ! RegisterReplier(streamReplier)
     replierManager ! RegisterReplier(synonymReplier)
+    replierManager ! RegisterReplier(synonymStreamReplier)
   }
 
   def receive = {
@@ -213,6 +215,50 @@ class SynonymReplier extends BaseReplier {
 
 }
 
+/**
+ * An actor that constructs replies to a given status based on synonyms.
+ */
+class SynonymStreamReplier extends StreamReplier {
+  import Bot._
+  import tshrdlu.util.SimpleTokenizer
+
+  import context.dispatcher
+  import akka.pattern.ask
+  import akka.util._
+  import scala.concurrent.duration._
+  import scala.concurrent.Future
+
+  import tshrdlu.util.English._
+  import TwitterRegex._
+  override implicit val timeout = Timeout(10000)
+
+
+  override def getReplies(status: Status, maxLength: Int = 140): Future[Seq[String]] = {
+    log.info("Trying to do synonym search")
+    val text = stripLeadMention(status.getText).toLowerCase
+
+// Get two words from the tweet, and get up to 5 synonyms each (including the word itself).
+// Matched tweets must contain one synonym of each of the two words.
+
+    val query:String = SimpleTokenizer(text)
+      .filter(_.length > 3)
+      .filter(_.length < 10)
+      .filterNot(_.contains('/'))
+      .filter(tshrdlu.util.English.isSafe)
+      .filterNot(tshrdlu.util.English.stopwords(_))
+      .take(2).toList
+      .map(w => synonymize(w, 5))
+      .map(x=>x.mkString(" OR ")).map(x=>"("+x+")").mkString(" AND ")
+
+    log.info("searched for: " + query)
+
+    val futureStatuses = (context.parent ? SearchTwitter(new Query(query))).mapTo[Seq[Status]]
+
+    futureStatuses.map(_.flatMap(getText).filter(_.length <= maxLength))
+ }
+
+}
+
 
 /**
  * An actor that constructs replies to a given status.
@@ -254,6 +300,7 @@ class StreamReplier extends BaseReplier {
     // Filter statuses to their text and make sure they are short enough to use.
     statusesFuture.map(_.flatMap(getText).filter(_.length <= maxLength))
   }
+
 
   /**
    * Go through the list of Statuses, filter out the non-English ones and
