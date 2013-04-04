@@ -72,6 +72,7 @@ object English extends Language("eng") {
 
   lazy val stopwords = getLexicon("stopwords.english")
   lazy val vulgar = getLexicon("vulgar.txt.gz")
+  lazy val stopwords_bot = getLexicon("stopwords.bot")
   lazy val vocabulary = getLexicon("masc_vocab.txt.gz") ++ stopwords
   lazy val thesaurus = Thesaurus.read(Resource.asStream("/lang/eng/lexicon/oo_eng_thesaurus.gz"))
 
@@ -149,6 +150,11 @@ class Thesaurus(val entries: Map[String,ThesaurusEntry]) {
     case None => Set[String]()
   }
 
+}
+
+class English extends Language("eng") {
+  lazy val stopwords = getLexicon("stopwords.english")
+  lazy val vocabulary = getLexicon("masc_vocab.txt.gz") ++ stopwords
 }
  
 /**

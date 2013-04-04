@@ -31,7 +31,8 @@ object DecimalToPercent extends (Double => String) {
  */
 object SimpleTokenizer {
   def apply(text: String): IndexedSeq[String] = text
-    .replaceAll("""([\?!()\";\|\[\].,'])""", " $1 ")
+    .replaceAll("""([\?!\";\|\[\].,'])""", " $1 ")
+    .toLowerCase
     .trim
     .split("\\s+")
     .toIndexedSeq
