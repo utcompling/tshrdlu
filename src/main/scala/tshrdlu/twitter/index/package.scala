@@ -39,7 +39,7 @@ package tshrdlu.twitter
  *
  *    - `[base]` is the value of the
  *      `TSHRDLU_INDEX_DIR` environment variable if set,
- *      otherwise the temp directory, in the dir "tshrdlu".
+ *      otherwise the folder "tshrdlu" in your temporary directory.
  *
  *    - `[indexName]` is the name of the index
  *
