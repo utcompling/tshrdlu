@@ -63,12 +63,12 @@ with StatusListenerAdaptor with UserStreamListenerAdaptor {
 
   val twitter = new TwitterFactory().getInstance
   val replierManager = context.actorOf(Props[ReplierManager], name = "ReplierManager")
-  val streamReplier = context.actorOf(Props[StreamReplier], name = "StreamReplier")
-  val synonymReplier = context.actorOf(Props[SynonymReplier], name = "SynonymReplier")
+  val bigramReplier = context.actorOf(Props[BigramReplier], name = "BigramReplier")
+// val synonymReplier = context.actorOf(Props[SynonymReplier], name = "SynonymReplier")
 
   override def preStart {
-    replierManager ! RegisterReplier(streamReplier)
-    replierManager ! RegisterReplier(synonymReplier)
+    replierManager ! RegisterReplier(bigramReplier)
+    //replierManager ! RegisterReplier(synonymReplier)
   }
 
   def receive = {
@@ -219,7 +219,7 @@ class SynonymReplier extends BaseReplier {
 /**
  * An actor that constructs replies to a given status.
  */
-class StreamReplier extends BaseReplier {
+class BigramReplier extends BaseReplier {
   import Bot._
   import TwitterRegex._
   import tshrdlu.util.SimpleTokenizer
@@ -229,40 +229,61 @@ class StreamReplier extends BaseReplier {
   import akka.util._
   import scala.concurrent.duration._
   import scala.concurrent.Future
+  import scala.concurrent.Await
   implicit val timeout = Timeout(10 seconds)
 
   /**
    * Produce a reply to a status.
    */
+   lazy val stopwords = tshrdlu.util.English.stopwords_bot
   def getReplies(status: Status, maxLength: Int = 140): Future[Seq[String]] = {
     log.info("Trying to reply stream")
 
     val text = stripLeadMention(status.getText).toLowerCase
     
     // Get a sequence of futures of status sequences (one seq for each query)
-    val statusSeqFutures: Seq[Future[Seq[Status]]] = SimpleTokenizer(text)
-      .filter(_.length > 3)
-      .filter(_.length < 10)
-      .filterNot(_.contains('/'))
-      .filter(tshrdlu.util.English.isSafe)
-      .sortBy(- _.length)
-      .take(3)
-      .map(w => (context.parent ? SearchTwitter(new Query(w))).mapTo[Seq[Status]])
 
+      val bigram = Tokenize(text)
+          .sliding(2)
+          .flatMap{case Vector(x,y) => List(x+" "+y)}
+          .filterNot(z => (stopwords.contains(z(0))||stopwords.contains(z(1))))
+          .toList
+          .sortBy(-_.length)
+      val statusSeqFutures: Seq[Future[Seq[String]]] = bigram
+              .takeRight(5)
+              .map(w => (context.parent ? SearchTwitter(new Query("\""+w+"\""))).mapTo[Seq[Status]].map(_.flatMap(getText).toSeq))
+       // val reply = extractText(statusSeqFutures,bigram.toList)
+      
+       statusSeqFutures.foreach(println)
     // Convert this to a Future of a single sequence of candidate replies
-    val statusesFuture: Future[Seq[Status]] = 
-      Future.sequence(statusSeqFutures).map(_.flatten)
+    val statusesFuture: Future[Seq[String]] = 
+      extractText(statusSeqFutures,bigram.toList)
 
+      statusesFuture.foreach(println)
     // Filter statuses to their text and make sure they are short enough to use.
-    statusesFuture.map(_.flatMap(getText).filter(_.length <= maxLength))
+    statusesFuture.filter(_.length <= maxLength)
   }
 
-  /**
-   * Go through the list of Statuses, filter out the non-English ones and
-   * any that contain (known) vulgar terms, strip mentions from the front,
-   * filter any that have remaining mentions or links, and then return the
-   * head of the set, if it exists.
-   */
+    def extractText(statusList: Seq[Future[Seq[String]]],bigram:List[String]): Future[Seq[String]] = {
+        val bigramMap = Future
+        .sequence(statusList)
+        .map(_.flatten)
+        bigramMap.foreach(println)
+        val sortedMap = bigramMap
+        .map(tweet => tweet
+        .flatMap{x => Tokenize(x)
+          .sliding(2)
+          .filterNot(z => (stopwords.contains(z(0))||stopwords.contains(z(1))))
+          .map(bg => bg.mkString(" ") -> x) toMap
+          }.filter{case (p,q) => bigram.contains(p)})
+
+        val bigramSeq = sortedMap.map(_.map(_._2))
+        if(!Await.result(bigramSeq.map{_.isEmpty}, 10.seconds))
+                bigramSeq
+        else
+            bigramMap
+    }
+
   def getText(status: Status): Option[String] = {
     import tshrdlu.util.English.{isEnglish,isSafe}
 
@@ -276,7 +297,18 @@ class StreamReplier extends BaseReplier {
     else None
   }
 
-}
+  
+    def Tokenize(text: String): IndexedSeq[String]={
+      val starts = """(?:[#@])|\b(?:http)"""
+      text
+      .replaceAll("""([\?!()\";\|\[\].,':])""", " $1 ")
+      .trim
+      .split("\\s+")
+      .toIndexedSeq
+      .filterNot(x => x.startsWith(starts))
+  }
+
+  }
 
 
 object TwitterRegex {
