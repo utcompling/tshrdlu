@@ -108,6 +108,19 @@ object English extends Language("eng") {
     SpacePuncRE.replaceAllIn(synTokens.mkString(" "), "$1")
   }
 
+  // Use this to get a Set of synonyms for a given word.
+  def synonymize(token: String, length: Int):Set[String] = {
+    val synTokens = if (!stopwords(token)) {
+        val syns = thesaurus.synonyms(token)
+        val numSyns = syns.size
+        if (numSyns > 0) syns.take(length)
+        else Set(token)
+      } else {
+        Set(token)
+      }
+    synTokens
+  }
+
 }
 
 /**
@@ -255,3 +268,21 @@ object OpenOfficeThesaurusConverter {
   }
 
 }
+
+abstract class OtherLexica (code: String) {
+
+  lazy val resourceDir = "/lang/" + code
+  def appendPath(subdir: String) = resourceDir + subdir
+  def getLexicon(filename: String) = 
+    Resource.asSource(appendPath("/lexicon/"+filename))
+      .getLines
+      .filterNot(_.startsWith(";")) // filter out comments
+      .toSet
+
+}
+
+class Polarity extends OtherLexica("eng") {
+  lazy val posWords = getLexicon("positive-words.txt.gz")
+  lazy val negWords = getLexicon("negative-words.txt.gz")
+}
+
