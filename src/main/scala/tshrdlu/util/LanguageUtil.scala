@@ -138,6 +138,11 @@ class Thesaurus(val entries: Map[String,ThesaurusEntry]) {
   }
 
 }
+
+class English extends Language("eng") {
+  lazy val stopwords = getLexicon("stopwords.english")
+  lazy val vocabulary = getLexicon("masc_vocab.txt.gz") ++ stopwords
+}
  
 /**
  * Companion object to help with creating, writing and reading thesauruses.
@@ -254,4 +259,5 @@ object OpenOfficeThesaurusConverter {
     val thesaurus = Thesaurus(entries.toSeq)
     Thesaurus.write(thesaurus, outputFile)
   }
+
 }
