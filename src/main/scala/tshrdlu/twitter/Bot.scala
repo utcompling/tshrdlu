@@ -19,6 +19,7 @@ package tshrdlu.twitter
 import akka.actor._
 import twitter4j._
 import collection.JavaConversions._
+import tshrdlu.util.bridge._
 
 /**
  * An object to define the message types that the actors in the bot use for
@@ -53,13 +54,11 @@ object Bot {
  * appropriate actors that have been registered with it. Currently only
  * attends to updates that are addressed to the user account.
  */
-class Bot extends Actor with ActorLogging
-with StatusListenerAdaptor with UserStreamListenerAdaptor {
+class Bot extends Actor with ActorLogging {
   import Bot._
 
-  val stream = new TwitterStreamFactory().getInstance
-  stream.addListener(this)
-  val username = stream.getScreenName
+  val username = new TwitterStreamFactory().getInstance.getScreenName
+  val streamer = new Streamer(context.self)
 
   val twitter = new TwitterFactory().getInstance
   val replierManager = context.actorOf(Props[ReplierManager], name = "ReplierManager")
@@ -72,9 +71,9 @@ with StatusListenerAdaptor with UserStreamListenerAdaptor {
   }
 
   def receive = {
-    case Start => stream.user
+    case Start => streamer.stream.user
 
-    case Shutdown => stream.shutdown
+    case Shutdown => streamer.stream.shutdown
 
     case SearchTwitter(query) => 
       val tweets: Seq[Status] = twitter.search(query).getTweets.toSeq
@@ -83,15 +82,14 @@ with StatusListenerAdaptor with UserStreamListenerAdaptor {
     case UpdateStatus(update) => 
       log.info("Posting update: " + update.getStatus)
       twitter.updateStatus(update)
-  }
 
-  override def onStatus(status: Status) {
-    log.info("New status: " + status.getText)
-    val replyName = status.getInReplyToScreenName
-    if (replyName == username) {
-      log.info("Replying to: " + status.getText)
-      replierManager ! ReplyToStatus(status)
-    }
+    case status: Status =>
+      log.info("New status: " + status.getText)
+      val replyName = status.getInReplyToScreenName
+      if (replyName == username) {
+        log.info("Replying to: " + status.getText)
+        replierManager ! ReplyToStatus(status)
+      }
   }
 
 }
