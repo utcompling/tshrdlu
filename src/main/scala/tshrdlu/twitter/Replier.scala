@@ -90,16 +90,27 @@ class TopicModelReplier extends BaseReplier {
 				.distinct
 
 	//val statusList = statusQueryList.flatMap(w => twitter.search(new Query(w)).getTweets)
-
+    val test = Seq[String]()
+    
     // Get a sequence of futures of status sequences (one seq for each query)
-    val statusSeqFutures: Seq[Future[Seq[Status]]] = statusQueryList
-    	.map(w => (context.parent ? SearchTwitter(new Query(w))).mapTo[Seq[Status]])
+    val statusSeqFutures: Seq[Future[Seq[Status]]] = if(statusQueryList.length <1) {
+				SimpleTokenizer(text)
+    				.filter(_.length > 3)
+    				.filter(_.length < 10)
+    				.filterNot(_.contains('/'))
+    				.filter(tshrdlu.util.English.isSafe)
+    				.sortBy(- _.length)
+    				.take(3) 
+				.map(w => (context.parent ? SearchTwitter(new Query(w))).mapTo[Seq[Status]])}
+			else { statusQueryList
+    				.map(w => (context.parent ? SearchTwitter(new Query(w))).mapTo[Seq[Status]])}
 
     // Convert this to a Future of a single sequence of candidate replies
     val statusesFuture: Future[Seq[Status]] =
       	Future.sequence(statusSeqFutures).map(_.flatten)
 
 	statusesFuture.map{x => extractText(x, statusTopicList.toSet)}
+    
   }
 
   /**
