@@ -5,9 +5,6 @@ import io.Source
 /**
  * Created with IntelliJ IDEA.
  * User: eric
- * Date: 3/7/13
- * Time: 9:27 AM
- * To change this template use File | Settings | File Templates.
  */
 
 
