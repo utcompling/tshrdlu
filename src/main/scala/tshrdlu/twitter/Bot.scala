@@ -30,6 +30,7 @@ import tshrdlu.util.bridge._
  */
 object Bot {
   
+  object Sample
   object Start
   object Shutdown
   case class MonitorUserStream(listen: Boolean)
@@ -40,6 +41,8 @@ object Bot {
 
   def main (args: Array[String]) {
     val system = ActorSystem("TwitterBot")
+    val sample = system.actorOf(Props[Sampler], name = "Sampler")
+    sample ! Sample
     val bot = system.actorOf(Props[Bot], name = "Bot")
     bot ! Start
   }
@@ -67,12 +70,14 @@ class Bot extends Actor with ActorLogging {
   val synonymReplier = context.actorOf(Props[SynonymReplier], name = "SynonymReplier")
   val synonymStreamReplier = context.actorOf(Props[SynonymStreamReplier], name = "SynonymStreamReplier")
   val bigramReplier = context.actorOf(Props[BigramReplier], name = "BigramReplier")
+  val luceneReplier = context.actorOf(Props[LuceneReplier], name = "LuceneReplier")
 
   override def preStart {
     replierManager ! RegisterReplier(streamReplier)
     replierManager ! RegisterReplier(synonymReplier)
     replierManager ! RegisterReplier(synonymStreamReplier)
     replierManager ! RegisterReplier(bigramReplier)
+    replierManager ! RegisterReplier(luceneReplier)
   }
 
   def receive = {
@@ -95,6 +100,7 @@ class Bot extends Actor with ActorLogging {
         log.info("Replying to: " + status.getText)
         replierManager ! ReplyToStatus(status)
       }
+
   }
 }
   
@@ -170,6 +176,75 @@ class ReplierManager extends Actor with ActorLogging {
   }
 }
 
+
+// The Sampler collects possible responses. Does not implement a
+// filter for bot requests, so it should be connected to the sample
+// stream. Batches tweets together using the collector so we don't
+// need to add every tweet to the index on its own.
+class Sampler extends Actor with ActorLogging {
+  import Bot._
+
+  val streamer = new Streamer(context.self)
+
+  var collector, luceneWriter: ActorRef = null
+
+  override def preStart = {
+    collector = context.actorOf(Props[Collector], name="Collector")
+    luceneWriter = context.actorOf(Props[LuceneWriter], name="LuceneWriter")
+  }
+
+  def receive = {
+    case Sample => streamer.stream.sample
+    case status: Status => collector ! status
+    case tweets: List[Status] => luceneWriter ! tweets
+  }
+}
+
+
+
+// Collects until it reaches 100 and then sends them back to the
+// sender and the cycle begins anew.
+class Collector extends Actor with ActorLogging {
+
+  val collected = scala.collection.mutable.ListBuffer[Status]()
+  def receive = {
+    case status: Status => {
+      collected.append(status)
+      if (collected.length == 100) {
+        sender ! collected.toList
+        collected.clear
+      }
+    }
+  }
+}
+
+
+
+// The LuceneWriter actor extracts the content of each tweet, removes
+// the RT and mentions from the front and selects only tweets
+// classified as not vulgar for indexing via Lucene.
+class LuceneWriter extends Actor with ActorLogging {
+
+  import tshrdlu.util.{English, Lucene}
+  import TwitterRegex._
+
+  def receive = {
+    case tweets: List[Status] => {
+	 val useableTweets = tweets
+      .map(_.getText)
+      .map {
+        case StripMentionsRE(rest) => rest
+        case x => x
+      }
+      .filterNot(_.contains('@'))
+      .filterNot(_.contains('/'))
+      .filter(tshrdlu.util.English.isEnglish)
+      .filter(tshrdlu.util.English.isSafe)
+	
+      Lucene.write(useableTweets)
+    }
+  }
+}
 
 
 object TwitterRegex {

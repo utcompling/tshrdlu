@@ -248,3 +248,31 @@ class BigramReplier extends BaseReplier {
 
 }
 
+/**
+ * An actor that constructs replies to a given status.
+ */
+class LuceneReplier extends BaseReplier {
+  import Bot._
+  import TwitterRegex._
+  import tshrdlu.util.{English, Lucene, SimpleTokenizer}
+
+  import context.dispatcher
+  import akka.pattern.ask
+  import akka.util._
+  import scala.concurrent.duration._
+  import scala.concurrent.Future
+
+  def getReplies(status: Status, maxLength: Int = 140): Future[Seq[String]] = {
+    log.info("Trying to do search replies by Lucene")
+    val text = status.getText.toLowerCase
+	  val StripLeadMentionRE(withoutMention) = text
+	  val query = SimpleTokenizer(withoutMention)
+	    .filter(_.length > 2)
+	    .toList
+	    .mkString(" ")
+      val replyLucene = Lucene.read(query)
+    Future(replyLucene).map(_.filter(_.length <= maxLength))
+  }
+
+}
+
