@@ -77,7 +77,7 @@ class Bot extends Actor with ActorLogging {
     replierManager ! RegisterReplier(streamReplier)
     replierManager ! RegisterReplier(synonymReplier)
     replierManager ! RegisterReplier(synonymStreamReplier)
-    //replierManager ! RegisterReplier(bigramReplier)
+    replierManager ! RegisterReplier(bigramReplier)
     replierManager ! RegisterReplier(luceneReplier)
     replierManager ! RegisterReplier(topicModelReplier)
   }
@@ -132,6 +132,9 @@ class ReplierManager extends Actor with ActorLogging {
       val replyFutures: Seq[Future[StatusUpdate]] = 
         repliers.map(r => (r ? ReplyToStatus(status)).mapTo[StatusUpdate])
 
+    //
+      Thread.sleep(15000)
+
       val futureUpdate = Future.sequence(replyFutures).map { candidates =>
         val numCandidates = candidates.length
         println("NC: " + numCandidates)
@@ -140,11 +143,10 @@ class ReplierManager extends Actor with ActorLogging {
         else
           randomFillerStatus(status)
       }
-
-    for (status <- futureUpdate) {
-      println("************ " + status)
-      context.parent ! UpdateStatus(status)
-    }
+    
+      for (status <- futureUpdate) {
+        context.parent ! UpdateStatus(status)
+      }
     
   }
 
