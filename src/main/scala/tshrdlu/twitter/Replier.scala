@@ -395,7 +395,7 @@ class LuceneReplier extends BaseReplier {
  */
 class ChunkReplier extends BaseReplier {
   import Bot._
-  import tshrdlu.util.{English, SimpleTokenizer}
+  import tshrdlu.util.{English, Lucene, SimpleTokenizer}
   import jarvis.nlp.TrigramModel
   import jarvis.nlp.util._
   import scala.concurrent.Future  
@@ -423,14 +423,13 @@ class ChunkReplier extends BaseReplier {
                      .sorted
                      .take(2)
                      .map(_._2)
-   
     val statusList: Seq[Future[Seq[Status]]] = selectedChunks
          .map(chunk => (context.parent ? SearchTwitter(new Query(chunk))).mapTo[Seq[Status]])
 
     val statusesFuture: Future[Seq[Status]] =
         Future.sequence(statusList).map(_.flatten)
     statusesFuture.map(status => extractText(status))
-        .map(_.filter(_.length <= maxLength))
+                  .map(_.filter(_.length <= maxLength))
   }
 
   /**
@@ -457,6 +456,5 @@ class ChunkReplier extends BaseReplier {
       //the highest probability according to the language model
       Seq(if (useableTweets.isEmpty) "I don't know what to say." else useableTweets.head)
   }
-
 }
 

@@ -3,6 +3,8 @@ package tshrdlu.twitter
 import java.io._
 import upparse.cli.Main
 import upparse.corpus.{StopSegmentCorpus, BasicCorpus, CorpusUtil}
+import tshrdlu.util.Resource
+import java.net.URL
 
 /*
 @author Stephen Pryor (spryor)
@@ -13,7 +15,7 @@ class Chunker {
   //given a tweet, return the chunks
   def apply(tweet: String) = extractChunks(chunkTweet(tweet))
 
-  val resourceDirectory = "/chunking/"  
+  val resourceDirectory = this.getClass().getResource("/chunking/").getPath()
 
   //the file with a tweet to chunk
   private val tweetFile = resourceDirectory+"evalTweet.txt" 
