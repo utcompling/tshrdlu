@@ -144,11 +144,9 @@ class ReplierManager extends Actor with ActorLogging {
         else
           randomFillerStatus(status)
       }
-    
-      for (status <- futureUpdate) {
-        context.parent ! UpdateStatus(status)
-      }
-    
+
+      val bot = context.parent
+      futureUpdate.foreach(bot ! UpdateStatus(_))
   }
 
   lazy val fillerStatusMessages = Vector(
