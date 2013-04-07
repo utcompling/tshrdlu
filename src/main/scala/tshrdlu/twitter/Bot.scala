@@ -73,6 +73,7 @@ class Bot extends Actor with ActorLogging {
   val luceneReplier = context.actorOf(Props[LuceneReplier], name = "LuceneReplier")
   val topicModelReplier = context.actorOf(Props[TopicModelReplier], name = "TopicModelReplier")
   val chunkReplier = context.actorOf(Props[ChunkReplier], name = "ChunkReplier")
+  val sudoReplier = context.actorOf(Props[SudoReplier], name = "SudoReplier")
 
   override def preStart {
     replierManager ! RegisterReplier(streamReplier)
@@ -82,6 +83,7 @@ class Bot extends Actor with ActorLogging {
     replierManager ! RegisterReplier(luceneReplier)
     replierManager ! RegisterReplier(topicModelReplier)
     replierManager ! RegisterReplier(chunkReplier)
+    replierManager ! RegisterReplier(sudoReplier)
   }
 
   def receive = {
@@ -131,25 +133,22 @@ class ReplierManager extends Actor with ActorLogging {
 
     case ReplyToStatus(status) =>
 
-      val replyFutures: Seq[Future[StatusUpdate]] = 
-        repliers.map(r => (r ? ReplyToStatus(status)).mapTo[StatusUpdate])
+      val replyFutures: Seq[Future[Option[StatusUpdate]]] = 
+        repliers.map(r => (r ? ReplyToStatus(status))
+          .recover { case e: Throwable => None }
+          .mapTo[Option[StatusUpdate]])
 
-    //
-      Thread.sleep(15000)
-
-      val futureUpdate = Future.sequence(replyFutures).map { candidates =>
+      val futureUpdate = Future.sequence(replyFutures).map(_.flatten).map { candidates =>
         val numCandidates = candidates.length
-        println("NC: " + numCandidates)
+        log.info("Number of candidates: " + numCandidates)
         if (numCandidates > 0)
           candidates(random.nextInt(numCandidates))
         else
           randomFillerStatus(status)
       }
-    
-      for (status <- futureUpdate) {
-        context.parent ! UpdateStatus(status)
-      }
-    
+
+      val bot = context.parent
+      futureUpdate.foreach(bot ! UpdateStatus(_))
   }
 
   lazy val fillerStatusMessages = Vector(

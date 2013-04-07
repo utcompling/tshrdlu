@@ -20,9 +20,11 @@ trait BaseReplier extends Actor with ActorLogging {
       val replyName = status.getUser.getScreenName
       val candidatesFuture = getReplies(status, 138-replyName.length)
       candidatesFuture.map { candidates =>
-        val reply = "@" + replyName + " " + candidates.toSet.head
-        log.info("Candidate reply: " + reply)
-        new StatusUpdate(reply).inReplyToStatusId(status.getId)
+        candidates.toSet.headOption.map({ replyText:String => 
+          val reply = "@" + replyName + " " + replyText
+          log.info("Candidate reply: " + reply)
+          new StatusUpdate(reply).inReplyToStatusId(status.getId)
+        })
       } pipeTo sender
   }
 
@@ -456,6 +458,32 @@ class ChunkReplier extends BaseReplier {
       //given the set of potential tweets, return the tweet that has
       //the highest probability according to the language model
       Seq(if (useableTweets.isEmpty) "I don't know what to say." else useableTweets.head)
+  }
+}
+
+/**
+ * An actor that responds to requests to make sandwiches.
+ *
+ * @see <a href="http://xkcd.com/149/">http://xkcd.com/149/</a>
+ */
+class SudoReplier extends BaseReplier {
+  import scala.concurrent.Future
+  import context.dispatcher
+
+  lazy val MakeSandwichRE = """(?i)(?:.*(\bsudo\b))?.*\bmake (?:me )?an?\b.*\bsandwich\b.*""".r
+
+  def getReplies(status: Status, maxLength: Int = 140): Future[Seq[String]] = {
+    log.info("Checking for sandwich requests")
+    val text = TwitterRegex.stripLeadMention(status.getText)
+    val replies: Seq[String] = Seq(text) collect {
+      case MakeSandwichRE(sudo) => {
+        Option(sudo) match {
+          case Some(_) => "Okay."
+          case None => "What? Make it yourself."
+        }
+      }
+    }
+    Future(replies.filter(_.length <= maxLength))
   }
 }
 
