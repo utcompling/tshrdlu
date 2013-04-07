@@ -405,15 +405,12 @@ class ChunkReplier extends BaseReplier {
   import context.dispatcher
   import scala.concurrent.duration._
   import scala.concurrent.Future
+  import java.net.URL
 
   implicit val timeout = Timeout(10 seconds)
 
-  //Create and object to read and parse files with a single
-  //sentence per file
-  object SPLReader extends CorpusReader(".txt") with SPLParser
-
   //A Trigram language model based on a dataset of mostly english tweets
-  val LanguageModel = TrigramModel(SPLReader("/chunking/"))
+  val LanguageModel = TrigramModel(SPLReader(this.getClass().getResource("/chunking/").getPath()))
 
   val Chunker = new Chunker()
 
