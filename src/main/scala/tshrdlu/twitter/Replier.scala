@@ -20,9 +20,11 @@ trait BaseReplier extends Actor with ActorLogging {
       val replyName = status.getUser.getScreenName
       val candidatesFuture = getReplies(status, 138-replyName.length)
       candidatesFuture.map { candidates =>
-        val reply = "@" + replyName + " " + candidates.toSet.head
-        log.info("Candidate reply: " + reply)
-        new StatusUpdate(reply).inReplyToStatusId(status.getId)
+        candidates.toSet.headOption.map({ replyText:String => 
+          val reply = "@" + replyName + " " + replyText
+          log.info("Candidate reply: " + reply)
+          new StatusUpdate(reply).inReplyToStatusId(status.getId)
+        })
       } pipeTo sender
   }
 

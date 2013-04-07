@@ -131,15 +131,14 @@ class ReplierManager extends Actor with ActorLogging {
 
     case ReplyToStatus(status) =>
 
-      val replyFutures: Seq[Future[StatusUpdate]] = 
-        repliers.map(r => (r ? ReplyToStatus(status)).mapTo[StatusUpdate])
+      val replyFutures: Seq[Future[Option[StatusUpdate]]] = 
+        repliers.map(r => (r ? ReplyToStatus(status))
+          .recover { case e: Throwable => None }
+          .mapTo[Option[StatusUpdate]])
 
-    //
-      Thread.sleep(15000)
-
-      val futureUpdate = Future.sequence(replyFutures).map { candidates =>
+      val futureUpdate = Future.sequence(replyFutures).map(_.flatten).map { candidates =>
         val numCandidates = candidates.length
-        println("NC: " + numCandidates)
+        log.info("Number of candidates: " + numCandidates)
         if (numCandidates > 0)
           candidates(random.nextInt(numCandidates))
         else
