@@ -73,6 +73,7 @@ class Bot extends Actor with ActorLogging {
   val luceneReplier = context.actorOf(Props[LuceneReplier], name = "LuceneReplier")
   val topicModelReplier = context.actorOf(Props[TopicModelReplier], name = "TopicModelReplier")
   val chunkReplier = context.actorOf(Props[ChunkReplier], name = "ChunkReplier")
+
   override def preStart {
     replierManager ! RegisterReplier(streamReplier)
     replierManager ! RegisterReplier(synonymReplier)

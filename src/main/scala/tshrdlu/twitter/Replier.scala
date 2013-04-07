@@ -419,17 +419,19 @@ class ChunkReplier extends BaseReplier {
     val text = status.getText.toLowerCase
     val StripLeadMentionRE(withoutMention) = text
     val selectedChunks = Chunker(withoutMention)
-                     .map(c => (LanguageModel(SimpleTokenizer(c)), c))
-                     .sorted
-                     .take(2)
-                     .map(_._2)
-    val statusList: Seq[Future[Seq[Status]]] = selectedChunks
+      .map(c => (LanguageModel(SimpleTokenizer(c)), c))
+      .sorted
+      .take(2)
+      .map(_._2)
+    
+     val statusList: Seq[Future[Seq[Status]]] = selectedChunks
          .map(chunk => (context.parent ? SearchTwitter(new Query(chunk))).mapTo[Seq[Status]])
 
-    val statusesFuture: Future[Seq[Status]] =
-        Future.sequence(statusList).map(_.flatten)
-    statusesFuture.map(status => extractText(status))
-                  .map(_.filter(_.length <= maxLength))
+    val statusesFuture: Future[Seq[Status]] = Future.sequence(statusList).map(_.flatten)
+
+    statusesFuture
+      .map(status => extractText(status))
+      .map(_.filter(_.length <= maxLength))
   }
 
   /**
@@ -443,8 +445,7 @@ class ChunkReplier extends BaseReplier {
        .map {
          case StripMentionsRE(rest) => rest
          case x => x
-       }
-      .filter(tweet => tshrdlu.util.English.isEnglish(tweet) 
+       }.filter(tweet => tshrdlu.util.English.isEnglish(tweet) 
                        &&  tshrdlu.util.English.isSafe(tweet)
                        && !tweet.contains('@')
                        && !tweet.contains('/'))
