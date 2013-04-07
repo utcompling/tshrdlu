@@ -390,3 +390,29 @@ class LuceneReplier extends BaseReplier {
 
 }
 
+
+/**
+ * An actor that responds to requests to make sandwiches.
+ *
+ * @see <a href="http://xkcd.com/149/">http://xkcd.com/149/</a>
+ */
+class SudoReplier extends BaseReplier {
+  import scala.concurrent.Future
+  import context.dispatcher
+
+  lazy val MakeSandwichRE = """(?i)(?:.*(\bsudo\b))?.*\bmake (?:me )?an?\b.*\bsandwich\b.*""".r
+
+  def getReplies(status: Status, maxLength: Int = 140): Future[Seq[String]] = {
+    log.info("Checking for sandwich requests")
+    val text = TwitterRegex.stripLeadMention(status.getText)
+    val replies: Seq[String] = Seq(text) collect {
+      case MakeSandwichRE(sudo) => {
+        Option(sudo) match {
+          case Some(_) => "Okay."
+          case None => "What? Make it yourself."
+        }
+      }
+    }
+    Future(replies.filter(_.length <= maxLength))
+  }
+}
