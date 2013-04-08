@@ -392,6 +392,74 @@ class LuceneReplier extends BaseReplier {
 
 }
 
+/**
+ * A replier that replies based on unsupervised noun phrase chunking of a given tweet.
+ */
+class ChunkReplier extends BaseReplier {
+  import Bot._
+  import tshrdlu.util.{English, Lucene, SimpleTokenizer}
+  import jarvis.nlp.TrigramModel
+  import jarvis.nlp.util._
+  import scala.concurrent.Future  
+  import TwitterRegex._
+  import akka.pattern.ask
+  import akka.util._
+  import context.dispatcher
+  import scala.concurrent.duration._
+  import scala.concurrent.Future
+  import java.net.URL
+
+  implicit val timeout = Timeout(10 seconds)
+
+  //A Trigram language model based on a dataset of mostly english tweets
+  val LanguageModel = TrigramModel(SPLReader(this.getClass().getResource("/chunking/").getPath()))
+
+  val Chunker = new Chunker()
+
+  def getReplies(status: Status, maxLength: Int = 140): Future[Seq[String]] = {
+    log.info("Getting chunk tweets")
+    val text = status.getText.toLowerCase
+    val StripLeadMentionRE(withoutMention) = text
+    val selectedChunks = Chunker(withoutMention)
+      .map(c => (LanguageModel(SimpleTokenizer(c)), c))
+      .sorted
+      .take(2)
+      .map(_._2)
+    
+     val statusList: Seq[Future[Seq[Status]]] = selectedChunks
+         .map(chunk => (context.parent ? SearchTwitter(new Query(chunk))).mapTo[Seq[Status]])
+
+    val statusesFuture: Future[Seq[Status]] = Future.sequence(statusList).map(_.flatten)
+
+    statusesFuture
+      .map(status => extractText(status))
+      .map(_.filter(_.length <= maxLength))
+  }
+
+  /**
+   * Go through the list of Statuses, filter out the non-English ones,
+   * strip mentions from the front, filter any that have remaining
+   * mentions, and then return the head of the set, if it exists.
+   */
+   def extractText(statusList: Seq[Status]): Seq[String] = {
+     val useableTweets = statusList
+       .map(_.getText)
+       .map {
+         case StripMentionsRE(rest) => rest
+         case x => x
+       }.filter(tweet => tshrdlu.util.English.isEnglish(tweet) 
+                       &&  tshrdlu.util.English.isSafe(tweet)
+                       && !tweet.contains('@')
+                       && !tweet.contains('/'))
+      .map(t => (LanguageModel(SimpleTokenizer(t)), t))
+      .sorted
+      .reverse
+      .map{ case (k,t) => t}
+      //given the set of potential tweets, return the tweet that has
+      //the highest probability according to the language model
+      Seq(if (useableTweets.isEmpty) "I don't know what to say." else useableTweets.head)
+  }
+}
 
 /**
  * An actor that responds to requests to make sandwiches.
@@ -418,3 +486,4 @@ class SudoReplier extends BaseReplier {
     Future(replies.filter(_.length <= maxLength))
   }
 }
+
