@@ -20,5 +20,6 @@ libraryDependencies ++= Seq(
   "commons-codec" % "commons-codec" % "1.7",
   "org.apache.lucene" % "lucene-core" % "4.2.0",
   "org.apache.lucene" % "lucene-analyzers-common" % "4.2.0",
-  "org.apache.lucene" % "lucene-queryparser" % "4.2.0"
+  "org.apache.lucene" % "lucene-queryparser" % "4.2.0",
+  "de.bwaldvogel" % "liblinear" % "1.92"
 )

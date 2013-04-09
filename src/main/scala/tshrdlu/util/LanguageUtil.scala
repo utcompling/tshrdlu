@@ -73,6 +73,7 @@ object English extends Language("eng") {
   lazy val stopwords = getLexicon("stopwords.english")
   lazy val vulgar = getLexicon("vulgar.txt.gz")
   lazy val stopwords_bot = getLexicon("stopwords.bot")
+  lazy val vocabularyTWSS = getLexicon("TWSSVocab.txt");
   lazy val vocabulary = getLexicon("masc_vocab.txt.gz") ++ stopwords
   lazy val thesaurus = Thesaurus.read(Resource.asStream("/lang/eng/lexicon/oo_eng_thesaurus.gz"))
 
@@ -290,5 +291,11 @@ abstract class OtherLexica (code: String) {
 class Polarity extends OtherLexica("eng") {
   lazy val posWords = getLexicon("positive-words.txt.gz")
   lazy val negWords = getLexicon("negative-words.txt.gz")
+}
+object TWSSModel {
+  import de.bwaldvogel.liblinear._; 
+  import java.io.File
+  lazy val model:Model = Model.load(new File("src/main/resources/TWSS/TWSS.model"))
+  def apply() : Model = model
 }
 

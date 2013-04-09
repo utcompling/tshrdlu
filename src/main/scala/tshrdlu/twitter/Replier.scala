@@ -487,3 +487,58 @@ class SudoReplier extends BaseReplier {
   }
 }
 
+/** An actor that responds to a tweet if it can be replied 
+* by "Thats what she said". This is based on the work done by 
+*Chloe Kiddon and Yuriy Brun , University of Washington
+*That's What She Said: Double Entendre Identification
+* Dataset from Edwin Chen
+*/
+
+class TWSSReplier extends BaseReplier {
+  import scala.concurrent.Future
+  import context.dispatcher
+  import de.bwaldvogel.liblinear._; 
+  import scala.collection.mutable.ArrayBuffer
+  import tshrdlu.util.{TWSSModel, English}
+
+
+  val vocabulary = English.vocabularyTWSS.map(line => line.split(" ")(0)).toIndexedSeq
+  val IDFMap:Map[String,Int] = English.vocabularyTWSS.map { line=>
+    val tokens = line.split(" ");
+    (tokens(0),tokens(1).toInt)
+  }.toMap
+
+  def getReplies(status: Status , maxLength:Int = 140): Future[Seq[String]] ={
+    log.info("Checking if tweet can be responded with TWSS")
+    val tweet = TwitterRegex.stripLeadMention(status.getText.toLowerCase)
+    val tweetMap:Map[String,Int] = SimpleTokenizer(tweet)
+    .groupBy(x=> x)
+    .mapValues(x=> x.length)
+
+    val twssModel = TWSSModel()
+    val featureVector = getFeatureVector(tweetMap)
+    val prob = Array(0.0,0.0);
+    Linear.predictProbability(twssModel, getFeatureVector(tweetMap).toArray,prob);
+    val response = if(prob.toList(0) > 0.9 ) "Thats what she said !! :-P " else "Thats was exactly what I told him !! "
+    Future(Seq(response));
+  }
+  def getFeatureVector(document:Map[String,Int]): ArrayBuffer[Feature] ={
+    val feature = new ArrayBuffer[Feature](vocabulary.size);
+    var index=1;
+
+    vocabulary.foreach{ word=>
+      
+      if(document.contains(word))
+      {
+      val tf = document(word);
+      val idf = Math.log(7887/IDFMap(word));
+      val tf_idf = tf*idf;
+      val featureNode:Feature = new FeatureNode(index,tf_idf);
+      feature += featureNode
+      }
+      index +=1
+    }
+    feature
+  }
+}
+
