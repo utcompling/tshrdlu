@@ -298,4 +298,3 @@ object TWSSModel {
   lazy val model:Model = Model.load(new File("src/main/resources/TWSS/TWSS.model"))
   def apply() : Model = model
 }
-

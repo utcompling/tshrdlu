@@ -10,7 +10,10 @@ crossPaths := false
 
 retrieveManaged := true
 
-resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
+resolvers ++= Seq(
+  "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
+  "Local Maven Repository" at Path.userHome.asFile.toURI.toURL + ".m2/repository"
+)
 
 libraryDependencies ++= Seq(
   "org.twitter4j" % "twitter4j-core" % "3.0.3",
@@ -23,3 +26,5 @@ libraryDependencies ++= Seq(
   "org.apache.lucene" % "lucene-queryparser" % "4.2.0",
   "de.bwaldvogel" % "liblinear" % "1.92"
 )
+
+initialCommands in console := "import tshrdlu.repl._\nReplBot.setup\nprintln(\"***\")\nprintln(\"To activate repliers, call ReplBot.loadReplier(name). See Bot.scala for names.\")\nprintln(\"call ReplBot.sendTweet(text) or its overloads.\")\nprintln(\"***\")"

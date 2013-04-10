@@ -1,25 +1,32 @@
-package tshrdlu.twitter
+package tshrdlu.repl
 
 import akka.actor._
 import twitter4j._
 import akka.pattern.ask
 import akka.util._
+import tshrdlu.twitter.Bot._
 
 object ReplBot {
-  def main (args: Array[String]) {
-    val system = ActorSystem("Repl")
-    val bot = system.actorOf(Props[ReplBot], name = "ReplBot")
-    val IncTweet = """(\w+): (.*)""".r
+  var bot: ActorRef = null
 
-    io.Source.stdin.getLines.foreach {
-      case IncTweet(user, message) => bot ! FakeStatus(message, user)
-      case _ => println("I don't understand.")
-    }
+  def setup {
+    val system = ActorSystem("Repl")
+    bot = system.actorOf(Props[ReplBot], name = "ReplBot")
   }
+  
+  def loadReplier(name: String) { bot ! ReplierByName(name) }
+  
+  def sendTweet(text: String) { bot ! FakeStatus(text) }
+  def sendTweet(name: String, text: String) { bot ! FakeStatus(text, name) }
+  def sendTweet(screenName: String, name: String, text: String) { bot ! FakeStatus(text, FakeUser(name, screenName)) }
 }
 
-class ReplBot extends Bot {
-  import Bot._
+class ReplBot extends tshrdlu.twitter.Bot {
+
+  override def preStart {
+    // deactivate loading of all
+  }
+
   def replReceive: Receive = {
     case UpdateStatus(update) => log.info(s"got update: $update")
   }
@@ -28,13 +35,16 @@ class ReplBot extends Bot {
 
 object FakeStatus {
   val random = new java.util.Random
-  def apply(id: Long, text: String, user: String): FakeStatus = new FakeStatus(id, text, user)
+  // Maybe implicits?
+  def apply(id: Long, text: String, user: String): FakeStatus = apply(id, text, FakeUser(user))
   def apply(text: String, user: String): FakeStatus = apply(random.nextInt, text, user)
+  def apply(text: String, user: User): FakeStatus = apply(random.nextInt, text, user)
+  def apply(id: Long, text: String, user: User): FakeStatus = new FakeStatus(id, text, user)
   def apply(text: String): FakeStatus = apply(text, "thedoctor")
 }
 
 // Add further fields via accessors.
-class FakeStatus(id: Long, text: String, user: String) extends Status {
+class FakeStatus(id: Long, text: String, user: User) extends Status {
   // Members declared in java.lang.Comparable
   def compareTo(other: twitter4j.Status): Int = Integer.valueOf((getId - other.getId).intValue())
 
@@ -58,7 +68,7 @@ class FakeStatus(id: Long, text: String, user: String) extends Status {
   def getRetweetedStatus(): twitter4j.Status = ???
   def getSource(): String = ???
   def getText(): String = text
-  def getUser(): twitter4j.User = FakeUser(user)
+  def getUser(): twitter4j.User = user
   def isFavorited(): Boolean = ???
   def isPossiblySensitive(): Boolean = ???
   def isRetweet(): Boolean = ???
@@ -73,6 +83,7 @@ class FakeStatus(id: Long, text: String, user: String) extends Status {
 object FakeUser {
   val random = new java.util.Random
   def apply(id: Long, name: String, screenName: String): FakeUser = new FakeUser(id, name, screenName)
+  def apply(name: String, screenName: String): FakeUser = apply(random.nextInt, name, screenName)
   def apply(name: String): FakeUser = apply(random.nextInt, name, name)
 }
 
