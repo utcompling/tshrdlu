@@ -33,6 +33,12 @@ on Lucene, you can customize the directory where on-disk indexes are
 stored (the default is the tempdir, check the directory `tshrdlu`) by
 setting the environment variable `TSHRDLU_INDEX_DIR`.
 
+Some functionality depends on [GeoNames](http://www.geonames.org/) API access
+(free to sign up and use). To take advantage of this functionality, create an
+account and set the environment variable `TSHRDLU_GEONAMES_USERNAME` to your
+GeoNames username. tshrdlu should still run without this but some of the
+repliers will not function.
+
 
 ## Building the system from source
 
