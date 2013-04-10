@@ -15,13 +15,13 @@ class Chunker {
   //given a tweet, return the chunks
   def apply(tweet: String) = extractChunks(chunkTweet(tweet))
 
-  val resourceDirectory = this.getClass().getResource("/chunking/").getPath()
+  lazy val resourceDirectory = this.getClass().getResource("/chunking/").getPath()
 
   //the file with a tweet to chunk
-  private val tweetFile = resourceDirectory+"evalTweet.txt" 
+  lazy private val tweetFile = resourceDirectory+"evalTweet.txt" 
  
   //the arguments to initialize upparse
-  private val upparseArgs: Array[String] = Array("chunk",
+  lazy private val upparseArgs: Array[String] = Array("chunk",
                                         "-chunkerType", "PRLG",
                                         "-chunkingStrategy", "UNIFORM",
                                         "-encoderType", "BIO",
@@ -35,10 +35,10 @@ class Chunker {
   lazy val Chunks = """[(]([^()]+)[)]""".r  
 
   //create a upparse object
-  val upparser = new Main(upparseArgs)
+  lazy val upparser = new Main(upparseArgs)
   
   //create and train the upparse model 
-  val model = {
+  lazy val model = {
     val m = upparser.chunk_special()
     while(m.anotherIteration()) {
       m.updateWithEM(upparser.outputManager.getStatusStream())
