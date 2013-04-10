@@ -76,6 +76,7 @@ class Bot extends Actor with ActorLogging {
   val chunkReplier = context.actorOf(Props[ChunkReplier], name = "ChunkReplier")
   val sudoReplier = context.actorOf(Props[SudoReplier], name = "SudoReplier")
   val twssReplier = context.actorOf(Props[TWSSReplier], name = "TWSSReplier")
+  val sentimentReplier = context.actorOf(Props[SentimentReplier], name = "SentimentReplier")
 
   override def preStart {
     replierManager ! RegisterReplier(streamReplier)
@@ -87,6 +88,7 @@ class Bot extends Actor with ActorLogging {
     replierManager ! RegisterReplier(chunkReplier)
     replierManager ! RegisterReplier(sudoReplier)
     replierManager ! RegisterReplier(twssReplier)
+    replierManager ! RegisterReplier(sentimentReplier)
 
     // Attempt to create the LocationResolver actor
     Option(System.getenv("TSHRDLU_GEONAMES_USERNAME")) match {
