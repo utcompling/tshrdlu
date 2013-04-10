@@ -527,3 +527,71 @@ class TWSSReplier extends BaseReplier {
     feature
   }
 }
+
+class SentimentReplier extends BaseReplier {
+  import Bot._
+  import TwitterRegex._
+  import tshrdlu.util.{Polarity, SimpleTokenizer}
+
+  import context.dispatcher
+  import scala.concurrent.duration._
+  import scala.concurrent.Future
+  import akka.pattern._
+  import akka.util._
+
+  lazy val polarity = new Polarity()
+  implicit val timeout = Timeout(10 seconds)
+
+  def getReplies(status: Status, maxLength: Int): Future[Seq[String]] = {
+    log.info("Trying to reply with SentimentReplier")
+
+    val StripLeadMentionRE(withoutMention) = status.getText.toLowerCase
+    val statusList =
+      SimpleTokenizer(withoutMention)
+      .filter(_.length > 3)
+      .filter(_.length < 10)
+      .filterNot(_.contains('/'))
+      .filter(tshrdlu.util.English.isSafe)
+      .sortBy(- _.length)
+      .toList
+      // Use a bigram instead of a unigram search
+      .take(4)
+      .sliding(2)
+      .map(_.mkString(" "))
+      .map(w => (context.parent ? SearchTwitter(new Query(w))).mapTo[Seq[Status]])
+
+    val statusesFuture: Future[Seq[Status]] = Future.sequence(statusList).map(_.toSeq.flatten)
+
+    statusesFuture
+      .map(status => extractText(status, withoutMention))
+      .map(_.filter(_.length <= maxLength))
+  }
+
+  def extractText(statusList: Seq[Status], tweet: String): Seq[String] = {
+    val desiredSentiment = getSentiment(tweet)
+    val mult = if(desiredSentiment == 0) -1 else 1
+    val useableTweets = statusList
+      .map(_.getText)
+      .map {
+	case StripMentionsRE(rest) => rest
+	case x => x
+      }
+      .filterNot(_.contains('@'))
+      .filterNot(_.contains('/'))
+      .filter(tshrdlu.util.English.isEnglish)
+      .filter(tshrdlu.util.English.isSafe)
+
+    val response = if (useableTweets.isEmpty) "Sorry, but I can't help you with that." else useableTweets.sortBy(x => mult * Math.abs(getSentiment(x) + mult * desiredSentiment)).head
+    log.info("SentimentReplier responding with: " + response)
+    Seq(response)
+  }
+
+  def getSentiment(text: String) = {
+    val words = SimpleTokenizer(text)
+    val len = words.length.toDouble
+    val percentPositive = words.count(polarity.posWords.contains) / len
+    val percentNegative = words.count(polarity.negWords.contains) / len
+    (percentPositive - percentNegative)
+  }
+}
+

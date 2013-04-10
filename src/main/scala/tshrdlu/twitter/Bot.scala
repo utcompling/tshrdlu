@@ -77,11 +77,13 @@ class Bot extends Actor with ActorLogging {
     ("topicModel" -> context.actorOf(Props[TopicModelReplier], name = "TopicModelReplier")),
     ("chunk" -> context.actorOf(Props[ChunkReplier], name = "ChunkReplier")),
     ("sudo" -> context.actorOf(Props[SudoReplier], name = "SudoReplier")),
-    ("twss" -> context.actorOf(Props[TWSSReplier], name = "TWSSReplier"))
+    ("twss" -> context.actorOf(Props[TWSSReplier], name = "TWSSReplier")),
+    ("sentimentReplier" -> context.actorOf(Props[SentimentReplier], name = "SentimentReplier"))
   )
   
   override def preStart {
     repliers.values.foreach(replierManager ! RegisterReplier(_))
+
     // Attempt to create the LocationResolver actor
     Option(System.getenv("TSHRDLU_GEONAMES_USERNAME")) match {
       case Some(geoNamesUsername) =>
