@@ -35,6 +35,7 @@ object Bot {
   object Shutdown
   case class MonitorUserStream(listen: Boolean)
   case class RegisterReplier(replier: ActorRef)
+  case class ReplierByName(replier: String)
   case class ReplyToStatus(status: Status)
   case class SearchTwitter(query: Query)
   case class UpdateStatus(update: StatusUpdate)
@@ -67,27 +68,20 @@ class Bot extends Actor with ActorLogging {
   val twitter = new TwitterFactory().getInstance
   val replierManager = context.actorOf(Props[ReplierManager], name = "ReplierManager")
 
-  val streamReplier = context.actorOf(Props[StreamReplier], name = "StreamReplier")
-  val synonymReplier = context.actorOf(Props[SynonymReplier], name = "SynonymReplier")
-  val synonymStreamReplier = context.actorOf(Props[SynonymStreamReplier], name = "SynonymStreamReplier")
-  val bigramReplier = context.actorOf(Props[BigramReplier], name = "BigramReplier")
-  val luceneReplier = context.actorOf(Props[LuceneReplier], name = "LuceneReplier")
-  val topicModelReplier = context.actorOf(Props[TopicModelReplier], name = "TopicModelReplier")
-  val chunkReplier = context.actorOf(Props[ChunkReplier], name = "ChunkReplier")
-  val sudoReplier = context.actorOf(Props[SudoReplier], name = "SudoReplier")
-  val twssReplier = context.actorOf(Props[TWSSReplier], name = "TWSSReplier")
-
+  val repliers = Map(
+    ("stream" -> context.actorOf(Props[StreamReplier], name = "StreamReplier")),
+    ("synonym" -> context.actorOf(Props[SynonymReplier], name = "SynonymReplier")),
+    ("synonym-stream" -> context.actorOf(Props[SynonymStreamReplier], name = "SynonymStreamReplier")),
+    ("bigram" -> context.actorOf(Props[BigramReplier], name = "BigramReplier")),
+    ("lucene" -> context.actorOf(Props[LuceneReplier], name = "LuceneReplier")),
+    ("topicModel" -> context.actorOf(Props[TopicModelReplier], name = "TopicModelReplier")),
+    ("chunk" -> context.actorOf(Props[ChunkReplier], name = "ChunkReplier")),
+    ("sudo" -> context.actorOf(Props[SudoReplier], name = "SudoReplier")),
+    ("twss" -> context.actorOf(Props[TWSSReplier], name = "TWSSReplier"))
+  )
+  
   override def preStart {
-    replierManager ! RegisterReplier(streamReplier)
-    replierManager ! RegisterReplier(synonymReplier)
-    replierManager ! RegisterReplier(synonymStreamReplier)
-    replierManager ! RegisterReplier(bigramReplier)
-    replierManager ! RegisterReplier(luceneReplier)
-    replierManager ! RegisterReplier(topicModelReplier)
-    replierManager ! RegisterReplier(chunkReplier)
-    replierManager ! RegisterReplier(sudoReplier)
-    replierManager ! RegisterReplier(twssReplier)
-
+    repliers.values.foreach(replierManager ! RegisterReplier(_))
     // Attempt to create the LocationResolver actor
     Option(System.getenv("TSHRDLU_GEONAMES_USERNAME")) match {
       case Some(geoNamesUsername) =>
@@ -97,7 +91,7 @@ class Bot extends Actor with ActorLogging {
         log.warning("Environment variable TSHRDLU_GEONAMES_USERNAME not set. " +
                     "LocationResolver will not be available.")
     }
-  }
+}
 
   def receive = {
     case Start => streamer.stream.user
@@ -119,7 +113,7 @@ class Bot extends Actor with ActorLogging {
         log.info("Replying to: " + status.getText)
         replierManager ! ReplyToStatus(status)
       }
-
+    case ReplierByName(name) => replierManager ! RegisterReplier(repliers(name))
   }
 }
   
