@@ -71,7 +71,7 @@ class TopicModelReplier extends BaseReplier {
   import context.dispatcher
   implicit val timeout = Timeout(10 seconds)
 
-  val modeler = new TopicModeler("minTopicKeys.txt")
+  lazy val modeler = new TopicModeler("minTopicKeys.txt")
 
   def getReplies(status: Status, maxLength: Int = 140): Future[Seq[String]] = {
     log.info("Trying to reply via topic models")
@@ -488,8 +488,8 @@ class TWSSReplier extends BaseReplier {
   import tshrdlu.util.{TWSSModel, English,SimpleTokenizer}
 
 
-  val vocabulary = English.vocabularyTWSS.map(line => line.split(" ")(0)).toIndexedSeq
-  val IDFMap:Map[String,Int] = English.vocabularyTWSS.map { line=>
+  lazy val vocabulary = English.vocabularyTWSS.map(line => line.split(" ")(0)).toIndexedSeq
+  lazy val IDFMap:Map[String,Int] = English.vocabularyTWSS.map { line=>
     val tokens = line.split(" ");
     (tokens(0),tokens(1).toInt)
   }.toMap
