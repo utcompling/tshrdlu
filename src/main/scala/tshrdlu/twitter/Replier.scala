@@ -499,7 +499,7 @@ class TWSSReplier extends BaseReplier {
   import context.dispatcher
   import de.bwaldvogel.liblinear._; 
   import scala.collection.mutable.ArrayBuffer
-  import tshrdlu.util.{TWSSModel, English, SimpleTokenizer}
+  import tshrdlu.util.{TWSSModel, English,SimpleTokenizer}
 
 
   val vocabulary = English.vocabularyTWSS.map(line => line.split(" ")(0)).toIndexedSeq
@@ -519,6 +519,7 @@ class TWSSReplier extends BaseReplier {
     val featureVector = getFeatureVector(tweetMap)
     val prob = Array(0.0,0.0);
     Linear.predictProbability(twssModel, getFeatureVector(tweetMap).toArray,prob);
+   // println(prob.toList);
     val response = if(prob.toList(0) > 0.9 ) "Thats what she said !! :-P " else "Thats was exactly what I told him !! "
     Future(Seq(response));
   }

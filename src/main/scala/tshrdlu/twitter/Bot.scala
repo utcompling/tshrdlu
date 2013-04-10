@@ -59,6 +59,7 @@ object Bot {
  */
 class Bot extends Actor with ActorLogging {
   import Bot._
+  import tshrdlu.twitter.LocationResolver
 
   val username = new TwitterStreamFactory().getInstance.getScreenName
   val streamer = new Streamer(context.self)
@@ -88,6 +89,16 @@ class Bot extends Actor with ActorLogging {
     replierManager ! RegisterReplier(sudoReplier)
     replierManager ! RegisterReplier(twssReplier)
     replierManager ! RegisterReplier(sentimentReplier)
+
+    // Attempt to create the LocationResolver actor
+    Option(System.getenv("TSHRDLU_GEONAMES_USERNAME")) match {
+      case Some(geoNamesUsername) =>
+        val locProps = Props(new LocationResolver(geoNamesUsername))
+        context.system.actorOf(locProps, name = "LocationResolver")
+      case None =>
+        log.warning("Environment variable TSHRDLU_GEONAMES_USERNAME not set. " +
+                    "LocationResolver will not be available.")
+    }
   }
 
   def receive = {
