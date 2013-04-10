@@ -558,6 +558,8 @@ class SentimentReplier extends BaseReplier {
   implicit val timeout = Timeout(10 seconds)
 
   def getReplies(status: Status, maxLength: Int): Future[Seq[String]] = {
+    log.info("Trying to reply with SentimentReplier")
+
     val StripLeadMentionRE(withoutMention) = status.getText.toLowerCase
     val statusList =
       SimpleTokenizer(withoutMention)
@@ -594,7 +596,9 @@ class SentimentReplier extends BaseReplier {
       .filter(tshrdlu.util.English.isEnglish)
       .filter(tshrdlu.util.English.isSafe)
 
-    Seq(if (useableTweets.isEmpty) "Sorry, but I can't help you with that." else useableTweets.sortBy(x => mult * Math.abs(getSentiment(x) + mult * desiredSentiment)).head)
+    val response = if (useableTweets.isEmpty) "Sorry, but I can't help you with that." else useableTweets.sortBy(x => mult * Math.abs(getSentiment(x) + mult * desiredSentiment)).head
+    log.info("SentimentReplier responding with: " + response)
+    Seq(response)
   }
 
   def getSentiment(text: String) = {
