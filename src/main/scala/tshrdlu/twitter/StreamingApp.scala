@@ -42,6 +42,12 @@ class BaseStreamer extends PrintStatusListener {
 object StatusStreamer extends BaseStreamer
 
 /**
+ * Same as the status streamer except that only tweets classified as 
+ * english are returned
+ */
+object EnglishStatusStreamer extends BaseStreamer with EnglishStatusListener
+
+/**
  * A base class for streamers that use a filter.
  */
 abstract class FilteredStreamer extends BaseStreamer with Filterable {

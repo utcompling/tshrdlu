@@ -77,11 +77,7 @@ object English extends Language("eng") {
   lazy val vocabulary = getLexicon("masc_vocab.txt.gz") ++ stopwords
   lazy val thesaurus = Thesaurus.read(Resource.asStream("/lang/eng/lexicon/oo_eng_thesaurus.gz"))
 
-  def isEnglish(text: String) = {
-    val words = SimpleTokenizer(removeNonLanguage(text).toLowerCase)
-    val count = words.count(vocabulary) 
-    count > 1 && count.toDouble/words.length > .3
-  }
+  def isEnglish(text: String) = LanguageDetector(text) == "en"
 
   def removeNonLanguage(text: String) =
     text.replaceAll("[@#][A-Za-z_]+","")
