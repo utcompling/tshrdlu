@@ -24,7 +24,8 @@ libraryDependencies ++= Seq(
   "org.apache.lucene" % "lucene-core" % "4.2.0",
   "org.apache.lucene" % "lucene-analyzers-common" % "4.2.0",
   "org.apache.lucene" % "lucene-queryparser" % "4.2.0",
-  "de.bwaldvogel" % "liblinear" % "1.92"
+  "de.bwaldvogel" % "liblinear" % "1.92",
+  "com.cybozu.labs" % "langdetect" % "1.1-20120112" 
 )
 
 initialCommands in console := "import tshrdlu.repl._\nReplBot.setup\nprintln(\"***\")\nprintln(\"To activate repliers, call ReplBot.loadReplier(name). See Bot.scala for names.\")\nprintln(\"call ReplBot.sendTweet(text) or its overloads.\")\nprintln(\"***\")"
