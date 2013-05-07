@@ -22,7 +22,6 @@ package tshrdlu.util
 
 object LanguageDetector {
 
-   import java.util.ArrayList
    import com.cybozu.labs.langdetect.Detector
    import com.cybozu.labs.langdetect.DetectorFactory
    import com.cybozu.labs.langdetect.Language
