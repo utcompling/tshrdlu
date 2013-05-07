@@ -17,6 +17,7 @@ package tshrdlu.twitter
  */
 
 import twitter4j._
+import tshrdlu.util.English
 
 /**
  * An adaptor that provides dummy implementations of all
@@ -45,6 +46,15 @@ trait StatusListenerAdaptor extends StatusListener {
 class PrintStatusListener extends StatusListenerAdaptor {
   override def onStatus(status: Status) { 
     println(status.getText) 
+  }
+}
+
+/**
+ * A listener that prints the text of each status to standard out.
+ */
+trait EnglishStatusListener extends StatusListenerAdaptor {
+  override def onStatus(status: Status) {
+    if(English.isEnglish(status.getText)) println(status.getText)
   }
 }
 
