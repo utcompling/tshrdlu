@@ -72,13 +72,13 @@ class Bot extends Actor with ActorLogging {
     ("stream" -> context.actorOf(Props[StreamReplier], name = "StreamReplier")),
     //("synonym" -> context.actorOf(Props[SynonymReplier], name = "SynonymReplier")),
     ("synonym-stream" -> context.actorOf(Props[SynonymStreamReplier], name = "SynonymStreamReplier")),
-    ("bigram" -> context.actorOf(Props[BigramReplier], name = "BigramReplier")),
-    ("lucene" -> context.actorOf(Props[LuceneReplier], name = "LuceneReplier")),
-    ("topicModel" -> context.actorOf(Props[TopicModelReplier], name = "TopicModelReplier")),
-    ("chunk" -> context.actorOf(Props[ChunkReplier], name = "ChunkReplier")),
+    ("bigram" -> context.actorOf(Props[BigramReplier], name = "BigramReplier"))
+    //("lucene" -> context.actorOf(Props[LuceneReplier], name = "LuceneReplier")),
+    //("topicModel" -> context.actorOf(Props[TopicModelReplier], name = "TopicModelReplier")),
+    //("chunk" -> context.actorOf(Props[ChunkReplier], name = "ChunkReplier")),
     //("sudo" -> context.actorOf(Props[SudoReplier], name = "SudoReplier")),
-    ("twss" -> context.actorOf(Props[TWSSReplier], name = "TWSSReplier")),
-    ("sentimentReplier" -> context.actorOf(Props[SentimentReplier], name = "SentimentReplier"))
+    //("twss" -> context.actorOf(Props[TWSSReplier], name = "TWSSReplier")),
+    //("sentimentReplier" -> context.actorOf(Props[SentimentReplier], name = "SentimentReplier"))
   )
   
   override def preStart {
