@@ -28,6 +28,9 @@ can set the path in your `.bashrc` file as follows:
 Once you have taken care of these three things, you should be able to
 build and use tshrdlu.
 
+You will also need to configure twitter4j Twitter access, see
+http://twitter4j.org/en/configuration.html for details.
+
 If you plan to index and search objects using the provided code based
 on Lucene, you can customize the directory where on-disk indexes are
 stored (the default is the tempdir, check the directory `tshrdlu`) by
