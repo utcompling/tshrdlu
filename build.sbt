@@ -4,7 +4,7 @@ version := "0.1.6-SNAPSHOT"
 
 organization := "edu.utexas"
 
-scalaVersion := "2.10.1"
+scalaVersion := "2.11.8"
 
 crossPaths := false
 
@@ -19,7 +19,7 @@ libraryDependencies ++= Seq(
   "org.twitter4j" % "twitter4j-core" % "3.0.3",
   "org.twitter4j" % "twitter4j-stream" % "3.0.3",
   "org.scalanlp" % "nak" % "1.1.1",
-  "com.typesafe.akka" %% "akka-actor" % "2.1.2",
+  "com.typesafe.akka" %% "akka-actor" % "2.4.14",
   "commons-codec" % "commons-codec" % "1.7",
   "org.apache.lucene" % "lucene-core" % "4.2.0",
   "org.apache.lucene" % "lucene-analyzers-common" % "4.2.0",

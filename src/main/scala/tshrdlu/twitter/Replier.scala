@@ -239,7 +239,7 @@ class SynonymStreamReplier extends StreamReplier {
 
   import tshrdlu.util.English._
   import TwitterRegex._
-  override implicit val timeout = Timeout(10000)
+  override implicit val timeout: Timeout = Timeout(10000 seconds)
 
 
   override def getReplies(status: Status, maxLength: Int = 140): Future[Seq[String]] = {
